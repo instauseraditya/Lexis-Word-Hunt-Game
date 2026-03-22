@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LEXIS — Infinite Word Hunt</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #0d0d0d;
+  --paper: #f5f0e8;
+  --cream: #ede7d6;
+  --warm: #d4c9b0;
+  --accent: #c8410a;
+  --accent2: #2a6b3e;
+  --accent3: #1a3a7a;
+  --gold: #b8860b;
+  --cell: 36px;
+  --gap: 3px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--paper); color: var(--ink); font-family: 'DM Mono', monospace; overflow: hidden; }
+
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 1000; opacity: 0.5;
+}
+
+.shell { display: grid; grid-template-rows: auto 1fr; height: 100vh; overflow: hidden; }
+
+/* ── MASTHEAD ── */
+.masthead {
+  background: var(--ink); color: var(--paper);
+  display: grid; grid-template-columns: 1fr auto 1fr;
+  align-items: center; padding: 0 24px; height: 56px;
+  border-bottom: 3px solid var(--accent); position: relative; z-index: 10;
+}
+.masthead-left { display: flex; align-items: center; gap: 14px; }
+.logotype { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; letter-spacing: 6px; color: var(--paper); line-height: 1; }
+.tagline { font-size: 0.5rem; letter-spacing: 3px; text-transform: uppercase; color: #666; border-left: 1px solid #333; padding-left: 12px; line-height: 1.5; }
+.masthead-center { display: flex; align-items: baseline; gap: 5px; justify-content: center; }
+#timer-big { font-family: 'Bebas Neue', sans-serif; font-size: 2.2rem; letter-spacing: 4px; color: var(--paper); line-height: 1; transition: color 0.3s; font-variant-numeric: tabular-nums; }
+#timer-big.warn { color: #f0b030; }
+#timer-big.danger { color: var(--accent); animation: blink 0.6s infinite; }
+#timer-big.bonus-flash { animation: bonusFlash 0.6s ease; }
+@keyframes blink { 50% { opacity: 0.4; } }
+@keyframes bonusFlash { 0%{color:#4af0b0;transform:scale(1.15)} 50%{color:#4af0b0} 100%{color:var(--paper);transform:scale(1)} }
+.timer-sub { font-size: 0.5rem; letter-spacing: 2px; color: #555; text-transform: uppercase; }
+.masthead-right { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.chip { display: flex; flex-direction: column; align-items: center; padding: 4px 12px; border: 1px solid #2a2a2a; border-radius: 2px; gap: 1px; }
+.chip-val { font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; line-height: 1; letter-spacing: 2px; color: var(--paper); }
+.chip-val.gold { color: #f0b030; }
+.chip-lbl { font-size: 0.42rem; letter-spacing: 3px; text-transform: uppercase; color: #555; }
+.btn-ms { font-family: 'Bebas Neue', sans-serif; font-size: 0.8rem; letter-spacing: 3px; padding: 7px 14px; border-radius: 2px; cursor: pointer; border: none; transition: all 0.15s; }
+.btn-ghost { background: transparent; border: 1px solid #333; color: #888; }
+.btn-ghost:hover { border-color: var(--paper); color: var(--paper); }
+.btn-red { background: var(--accent); color: var(--paper); }
+.btn-red:hover { background: #e0520f; }
+
+/* ── LAYOUT ── */
+.game-body { display: grid; grid-template-columns: 195px 1fr 270px; overflow: hidden; }
+
+/* ── LEFT ── */
+.col-left { background: var(--cream); border-right: 2px solid var(--warm); display: flex; flex-direction: column; overflow: hidden; }
+.col-hdr { font-family: 'Bebas Neue', sans-serif; font-size: 0.65rem; letter-spacing: 4px; padding: 9px 14px 6px; color: #999; border-bottom: 1px solid var(--warm); text-transform: uppercase; flex-shrink: 0; }
+.word-queue { flex: 1; overflow-y: auto; padding: 7px; }
+.word-queue::-webkit-scrollbar { width: 3px; }
+.word-queue::-webkit-scrollbar-thumb { background: var(--warm); }
+.wcard { border-radius: 2px; padding: 8px 11px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; font-size: 0.75rem; letter-spacing: 1px; text-transform: uppercase; font-weight: 500; border: 1.5px solid transparent; background: var(--paper); transition: all 0.3s; }
+.wcard.active { background: var(--ink); color: var(--paper); border-color: var(--ink); box-shadow: 3px 3px 0 var(--accent); font-size: 0.88rem; letter-spacing: 2px; }
+.wcard.found { background: transparent; color: #bbb; text-decoration: line-through; text-decoration-color: #ccc; font-size: 0.68rem; }
+.wcard .dot { width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid currentColor; flex-shrink: 0; }
+.wcard.active .dot { background: var(--accent); border-color: var(--accent); }
+.wcard.found .dot { background: #ccc; border-color: #ccc; }
+.queue-footer { padding: 7px 14px; font-size: 0.5rem; letter-spacing: 2px; text-transform: uppercase; color: #aaa; border-top: 1px solid var(--warm); flex-shrink: 0; }
+
+/* bonus badge */
+.bonus-indicator {
+  margin: 4px 7px; padding: 6px 10px; border-radius: 2px;
+  background: rgba(42,107,62,0.12); border: 1px solid rgba(42,107,62,0.3);
+  font-size: 0.55rem; letter-spacing: 2px; text-transform: uppercase; color: var(--accent2);
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+}
+.bonus-indicator.off { background: rgba(0,0,0,0.04); border-color: var(--warm); color: #aaa; }
+.bonus-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent2); flex-shrink: 0; animation: pulse-green 1.5s infinite; }
+.bonus-indicator.off .bonus-dot { background: #ccc; animation: none; }
+@keyframes pulse-green { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ── CENTER ── */
+.col-center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; background: var(--paper); position: relative; overflow: hidden; }
+.col-center::before { content: ''; position: absolute; inset: 0; background-image: repeating-linear-gradient(transparent, transparent 27px, rgba(0,0,0,0.04) 27px, rgba(0,0,0,0.04) 28px); pointer-events: none; }
+.grid-wrap { position: relative; z-index: 2; box-shadow: 6px 6px 0 var(--warm), 10px 10px 0 rgba(0,0,0,0.07); }
+#grid { display: grid; gap: var(--gap); background: var(--warm); border: 2px solid var(--ink); user-select: none; }
+.cell { width: var(--cell); height: var(--cell); display: flex; align-items: center; justify-content: center; font-family: 'DM Mono', monospace; font-weight: 500; font-size: 0.85rem; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; background: var(--paper); transition: background 0.08s; color: var(--ink); }
+.cell:hover { background: var(--cream); }
+.cell.selecting { background: var(--ink); color: var(--paper); }
+.cell.found-cell { color: var(--ink); }
+#line-canvas { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 3; }
+.prog-strip { width: 100%; max-width: 400px; z-index: 2; }
+.prog-rail { height: 3px; background: var(--warm); overflow: hidden; margin-bottom: 4px; }
+#prog-fill { height: 100%; background: var(--ink); transition: width 0.5s cubic-bezier(.17,.67,.3,1.2); width: 0%; }
+.prog-text { font-size: 0.5rem; letter-spacing: 3px; text-transform: uppercase; color: #999; text-align: right; }
+.grid-hint { font-size: 0.55rem; letter-spacing: 3px; text-transform: uppercase; color: #aaa; z-index: 2; }
+
+/* bonus countdown ring */
+.bonus-ring-wrap { position: absolute; top: 14px; right: 14px; z-index: 5; display: none; }
+.bonus-ring-wrap.visible { display: block; }
+.bonus-ring-label { font-size: 0.45rem; letter-spacing: 2px; text-transform: uppercase; color: var(--accent2); text-align: center; margin-top: 2px; }
+.bonus-ring-num { font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; letter-spacing: 1px; color: var(--accent2); text-align: center; line-height: 1; }
+
+/* ── RIGHT ── */
+.col-right { background: var(--ink); color: var(--paper); display: flex; flex-direction: column; overflow: hidden; border-left: 2px solid #1a1a1a; }
+.dict-hdr { font-family: 'Bebas Neue', sans-serif; font-size: 0.65rem; letter-spacing: 4px; padding: 9px 16px 6px; color: #444; border-bottom: 1px solid #1e1e1e; flex-shrink: 0; text-transform: uppercase; display: flex; align-items: center; justify-content: space-between; }
+.lang-pills { display: flex; gap: 4px; flex-wrap: wrap; }
+.lang-pill { font-size: 0.45rem; letter-spacing: 1px; padding: 2px 6px; border-radius: 99px; border: 1px solid #333; color: #888; cursor: pointer; transition: all 0.15s; text-transform: uppercase; font-family: 'DM Mono', monospace; }
+.lang-pill:hover { border-color: var(--accent); color: var(--accent); }
+.lang-pill.active-lang { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+.dict-body { flex: 1; overflow-y: auto; padding: 0; }
+.dict-body::-webkit-scrollbar { width: 3px; }
+.dict-body::-webkit-scrollbar-thumb { background: #2a2a2a; }
+
+.meaning-hero { padding: 18px 16px 14px; border-bottom: 1px solid #1e1e1e; }
+.hero-tag { font-size: 0.5rem; letter-spacing: 4px; text-transform: uppercase; color: var(--accent); margin-bottom: 5px; }
+.hero-word { font-family: 'Bebas Neue', sans-serif; font-size: 2.2rem; letter-spacing: 4px; color: var(--paper); line-height: 1; margin-bottom: 3px; }
+.hero-phonetic { font-size: 0.6rem; color: #555; margin-bottom: 7px; letter-spacing: 1px; }
+.hero-pos { font-family: 'Instrument Serif', serif; font-style: italic; font-size: 0.75rem; color: #777; margin-bottom: 9px; }
+.hero-def { font-size: 0.75rem; line-height: 1.7; color: #ccc; letter-spacing: 0.3px; }
+.hero-example { margin-top: 8px; font-family: 'Instrument Serif', serif; font-style: italic; font-size: 0.72rem; color: #555; border-left: 2px solid #2a2a2a; padding-left: 10px; line-height: 1.5; }
+
+/* translations section */
+.translations-section { padding: 12px 16px; border-bottom: 1px solid #1a1a1a; }
+.trans-label { font-size: 0.48rem; letter-spacing: 3px; text-transform: uppercase; color: #444; margin-bottom: 10px; }
+.trans-entry { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dotted #1e1e1e; }
+.trans-entry:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.trans-lang-name { font-size: 0.52rem; letter-spacing: 2px; text-transform: uppercase; color: #666; margin-bottom: 3px; }
+.trans-text { font-size: 0.8rem; color: #bbb; line-height: 1.5; }
+.trans-loading { font-size: 0.6rem; color: #444; display: flex; align-items: center; gap: 6px; }
+
+.found-strip { padding: 10px 16px; border-bottom: 1px solid #1a1a1a; }
+.found-strip-lbl { font-size: 0.48rem; letter-spacing: 3px; color: #333; text-transform: uppercase; margin-bottom: 7px; }
+.found-entry { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; border-bottom: 1px dotted #1a1a1a; }
+.found-entry:last-child { border-bottom: none; }
+.found-word { font-family: 'Bebas Neue', sans-serif; font-size: 0.82rem; letter-spacing: 2px; color: #555; }
+.found-pts { font-size: 0.48rem; letter-spacing: 2px; color: #3a3a3a; }
+
+/* skeleton */
+.skel { background: #1e1e1e; border-radius: 2px; margin-bottom: 7px; animation: shimmer 1.4s infinite; }
+@keyframes shimmer { 0%,100%{opacity:0.3} 50%{opacity:0.9} }
+
+/* ── OVERLAYS ── */
+.overlay { position: fixed; inset: 0; background: rgba(13,13,13,0.93); z-index: 500; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+.overlay.on { opacity: 1; pointer-events: all; }
+.modal-box { background: var(--paper); color: var(--ink); border: 2px solid var(--ink); padding: 36px 40px; max-width: 520px; width: 94%; box-shadow: 8px 8px 0 var(--ink); transform: translateY(20px); transition: transform 0.3s; max-height: 90vh; overflow-y: auto; }
+.overlay.on .modal-box { transform: translateY(0); }
+.modal-title { font-family: 'Bebas Neue', sans-serif; font-size: 2.6rem; letter-spacing: 6px; line-height: 1; margin-bottom: 5px; }
+.modal-title.red { color: var(--accent); }
+.modal-sub { font-size: 0.72rem; color: #999; letter-spacing: 0.5px; line-height: 1.6; margin-bottom: 20px; }
+.modal-stats { display: flex; gap: 22px; margin-bottom: 24px; padding-bottom: 18px; border-bottom: 1px solid var(--warm); flex-wrap: wrap; }
+.mstat { display: flex; flex-direction: column; gap: 3px; }
+.mstat-val { font-family: 'Bebas Neue', sans-serif; font-size: 2.2rem; letter-spacing: 3px; line-height: 1; }
+.mstat-val.red { color: var(--accent); }
+.mstat-lbl { font-size: 0.47rem; letter-spacing: 3px; text-transform: uppercase; color: #bbb; }
+.btn-modal { font-family: 'Bebas Neue', sans-serif; letter-spacing: 3px; font-size: 0.82rem; padding: 12px 0; width: 100%; cursor: pointer; border-radius: 2px; border: none; margin-bottom: 7px; transition: all 0.15s; }
+.btn-modal.dark { background: var(--ink); color: var(--paper); }
+.btn-modal.dark:hover { background: #111; box-shadow: 3px 3px 0 var(--accent); }
+.btn-modal.light { background: transparent; border: 1.5px solid var(--warm); color: #999; }
+.btn-modal.light:hover { border-color: var(--ink); color: var(--ink); }
+
+/* Settings sections */
+.s-section { margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--warm); }
+.s-section:last-of-type { border-bottom: none; }
+.s-lbl { font-size: 0.52rem; letter-spacing: 3px; text-transform: uppercase; color: #aaa; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.s-lbl .badge { background: var(--accent); color: var(--paper); padding: 2px 7px; border-radius: 99px; font-size: 0.45rem; letter-spacing: 2px; }
+.s-lbl .badge.green { background: var(--accent2); }
+.s-row { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 8px; }
+.s-btn { flex: 1; min-width: 52px; padding: 9px 6px; font-family: 'Bebas Neue', sans-serif; letter-spacing: 2px; font-size: 0.75rem; background: var(--cream); border: 1.5px solid var(--warm); color: #888; border-radius: 2px; cursor: pointer; transition: all 0.15s; }
+.s-btn:hover { border-color: var(--ink); color: var(--ink); }
+.s-btn.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.s-input { width: 100%; padding: 9px 12px; font-family: 'DM Mono', monospace; font-size: 0.82rem; background: var(--cream); border: 1.5px solid var(--warm); border-radius: 2px; color: var(--ink); outline: none; transition: border-color 0.15s; margin-bottom: 6px; }
+.s-input:focus { border-color: var(--ink); }
+.s-input::placeholder { color: #bbb; }
+.s-toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
+.s-toggle-lbl { font-size: 0.68rem; color: var(--ink); letter-spacing: 0.5px; }
+.s-toggle-sub { font-size: 0.58rem; color: #aaa; margin-top: 2px; letter-spacing: 0.3px; }
+.toggle { width: 38px; height: 20px; background: var(--warm); border-radius: 99px; cursor: pointer; position: relative; transition: background 0.2s; border: none; flex-shrink: 0; }
+.toggle.on { background: var(--accent2); }
+.toggle::after { content: ''; position: absolute; width: 14px; height: 14px; background: white; border-radius: 50%; top: 3px; left: 3px; transition: left 0.2s; }
+.toggle.on::after { left: 21px; }
+.s-sub-box { background: var(--cream); border: 1px solid var(--warm); border-radius: 2px; padding: 12px; margin-top: 8px; display: none; }
+.s-sub-box.visible { display: block; }
+.s-sub-label { font-size: 0.5rem; letter-spacing: 2px; text-transform: uppercase; color: #aaa; margin-bottom: 6px; }
+
+/* language selector grid */
+.lang-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.lang-option { padding: 7px 6px; text-align: center; font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 1px; background: var(--paper); border: 1.5px solid var(--warm); border-radius: 2px; cursor: pointer; transition: all 0.15s; line-height: 1.3; }
+.lang-option:hover { border-color: var(--accent3); color: var(--accent3); }
+.lang-option.sel { background: var(--accent3); border-color: var(--accent3); color: white; }
+.lang-option .flag { font-size: 1rem; display: block; margin-bottom: 2px; }
+.lang-option .lname { display: block; text-transform: uppercase; }
+
+/* ── TOAST ── */
+#toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(70px); background: var(--ink); color: var(--paper); font-family: 'Bebas Neue', sans-serif; font-size: 0.9rem; letter-spacing: 4px; padding: 9px 22px; border-radius: 2px; border-bottom: 3px solid var(--accent); z-index: 300; transition: transform 0.35s cubic-bezier(.17,.67,.3,1.4), opacity 0.3s; opacity: 0; pointer-events: none; white-space: nowrap; }
+#toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+#toast.green { border-bottom-color: var(--accent2); }
+
+/* bonus toast */
+#bonus-toast { position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%) translateY(70px); background: var(--accent2); color: white; font-family: 'Bebas Neue', sans-serif; font-size: 0.82rem; letter-spacing: 4px; padding: 8px 20px; border-radius: 2px; z-index: 300; transition: transform 0.35s cubic-bezier(.17,.67,.3,1.4), opacity 0.3s; opacity: 0; pointer-events: none; white-space: nowrap; }
+#bonus-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+@keyframes reveal { 0%{opacity:0;transform:translateY(7px)} 100%{opacity:1;transform:translateY(0)} }
+.anim-reveal { animation: reveal 0.4s ease forwards; }
+
+/* dot spinner */
+.dspin { display: inline-flex; gap: 3px; }
+.dspin span { width: 4px; height: 4px; border-radius: 50%; background: currentColor; animation: ds 1s infinite; }
+.dspin span:nth-child(2){animation-delay:.2s} .dspin span:nth-child(3){animation-delay:.4s}
+@keyframes ds{0%,100%{opacity:0.2}50%{opacity:1}}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- MASTHEAD -->
+  <header class="masthead">
+    <div class="masthead-left">
+      <div class="logotype">LEXIS</div>
+      <div class="tagline">Infinite<br>Word Hunt</div>
+    </div>
+    <div class="masthead-center">
+      <div>
+        <div id="timer-big">2:00</div>
+        <div class="timer-sub" id="timer-sub">time remaining</div>
+      </div>
+    </div>
+    <div class="masthead-right">
+      <div class="chip"><span class="chip-val gold" id="score-val">0</span><span class="chip-lbl">score</span></div>
+      <div class="chip"><span class="chip-val" id="found-val">0</span><span class="chip-lbl">found</span></div>
+      <div class="chip"><span class="chip-val" id="streak-val">0</span><span class="chip-lbl">streak</span></div>
+      <button class="btn-ms btn-ghost" onclick="openSettings()">⚙ CONFIG</button>
+      <button class="btn-ms btn-red" onclick="restartGame()">↺ NEW</button>
+    </div>
+  </header>
+
+  <!-- BODY -->
+  <div class="game-body">
+
+    <!-- LEFT: word queue -->
+    <div class="col-left">
+      <div class="col-hdr">— Word Queue —</div>
+      <div id="bonus-indicator" class="bonus-indicator off">
+        <div class="bonus-dot"></div>
+        <span id="bonus-text">bonus off</span>
+      </div>
+      <div class="word-queue" id="word-queue"></div>
+      <div class="queue-footer" id="queue-footer">Loading…</div>
+    </div>
+
+    <!-- CENTER: grid -->
+    <div class="col-center">
+      <!-- bonus countdown ring in corner -->
+      <div class="bonus-ring-wrap" id="bonus-ring-wrap">
+        <div class="bonus-ring-num" id="bonus-ring-num">5</div>
+        <div class="bonus-ring-label">bonus sec</div>
+      </div>
+
+      <div class="grid-wrap">
+        <canvas id="line-canvas"></canvas>
+        <div id="grid"></div>
+      </div>
+      <div class="prog-strip">
+        <div class="prog-rail"><div id="prog-fill"></div></div>
+        <div class="prog-text" id="prog-text">0 / 0 found</div>
+      </div>
+      <div class="grid-hint" id="grid-hint">drag across letters to select a word</div>
+    </div>
+
+    <!-- RIGHT: dictionary -->
+    <div class="col-right">
+      <div class="dict-hdr">
+        <span>— Dictionary —</span>
+        <div class="lang-pills" id="active-lang-pills"></div>
+      </div>
+      <div class="dict-body" id="dict-body">
+        <div id="hero-slot"></div>
+        <div class="translations-section" id="trans-section" style="display:none;">
+          <div class="trans-label">Translations</div>
+          <div id="trans-content"></div>
+        </div>
+        <div class="found-strip" id="found-strip" style="display:none;">
+          <div class="found-strip-lbl">Previously Found</div>
+          <div id="found-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOASTS -->
+<div id="toast"></div>
+<div id="bonus-toast"></div>
+
+<!-- WIN MODAL -->
+<div class="overlay" id="win-overlay">
+  <div class="modal-box">
+    <div class="modal-title">VICTORY</div>
+    <p class="modal-sub">Every word hunted down. Lexical mastery achieved.</p>
+    <div class="modal-stats">
+      <div class="mstat"><span class="mstat-val red" id="w-found">0</span><span class="mstat-lbl">Found</span></div>
+      <div class="mstat"><span class="mstat-val" id="w-time">0</span><span class="mstat-lbl">Time Left</span></div>
+      <div class="mstat"><span class="mstat-val" id="w-score">0</span><span class="mstat-lbl">Score</span></div>
+      <div class="mstat"><span class="mstat-val" id="w-resets">0</span><span class="mstat-lbl">Resets Won</span></div>
+    </div>
+    <button class="btn-modal dark" onclick="restartGame()">PLAY AGAIN →</button>
+  </div>
+</div>
+
+<!-- LOSE MODAL -->
+<div class="overlay" id="lose-overlay">
+  <div class="modal-box">
+    <div class="modal-title red">TIME'S UP</div>
+    <p class="modal-sub">The clock ran out. Train harder and come back.</p>
+    <div class="modal-stats">
+      <div class="mstat"><span class="mstat-val" id="l-found">0</span><span class="mstat-lbl">Found</span></div>
+      <div class="mstat"><span class="mstat-val red" id="l-missed">0</span><span class="mstat-lbl">Missed</span></div>
+      <div class="mstat"><span class="mstat-val" id="l-score">0</span><span class="mstat-lbl">Score</span></div>
+    </div>
+    <button class="btn-modal dark" onclick="restartGame()">TRY AGAIN →</button>
+    <button class="btn-modal light" onclick="openSettings()">CHANGE CONFIG</button>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="overlay" id="cfg-overlay">
+  <div class="modal-box">
+    <div class="modal-title" style="margin-bottom:4px;">CONFIG</div>
+    <p class="modal-sub">Customize every aspect of your hunt.</p>
+
+    <!-- Time -->
+    <div class="s-section">
+      <div class="s-lbl">⏱ Time Limit</div>
+      <div class="s-row" id="time-row">
+        <button class="s-btn" data-t="60">1 MIN</button>
+        <button class="s-btn on" data-t="120">2 MIN</button>
+        <button class="s-btn" data-t="180">3 MIN</button>
+        <button class="s-btn" data-t="300">5 MIN</button>
+        <button class="s-btn" data-t="600">10 MIN</button>
+      </div>
+      <input class="s-input" id="custom-sec" type="number" placeholder="Or custom seconds (e.g. 90)" min="10" max="7200">
+    </div>
+
+    <!-- Word Count -->
+    <div class="s-section">
+      <div class="s-lbl">📝 Number of Words <span class="badge">Custom</span></div>
+      <div class="s-row" id="words-row">
+        <button class="s-btn" data-w="5">5</button>
+        <button class="s-btn" data-w="10">10</button>
+        <button class="s-btn on" data-w="15">15</button>
+        <button class="s-btn" data-w="20">20</button>
+        <button class="s-btn" data-w="30">30</button>
+        <button class="s-btn" data-w="0">∞</button>
+      </div>
+      <input class="s-input" id="custom-words" type="number" placeholder="Or enter exact number (e.g. 42)" min="1" max="999">
+      <div style="font-size:0.52rem;color:#bbb;letter-spacing:0.5px;">∞ = play until time runs out</div>
+    </div>
+
+    <!-- Time Reset Bonus -->
+    <div class="s-section">
+      <div class="s-lbl">⚡ Time Reset Bonus <span class="badge green">New</span></div>
+      <div class="s-toggle-row">
+        <div>
+          <div class="s-toggle-lbl">Enable Time Reset</div>
+          <div class="s-toggle-sub">Find a word fast → clock resets to full time</div>
+        </div>
+        <button class="toggle" id="bonus-toggle" onclick="toggleBonus()"></button>
+      </div>
+      <div class="s-sub-box" id="bonus-sub-box">
+        <div class="s-sub-label">Reset if found within (seconds):</div>
+        <div class="s-row" id="bonus-threshold-row">
+          <button class="s-btn" data-b="3">3s</button>
+          <button class="s-btn on" data-b="5">5s</button>
+          <button class="s-btn" data-b="8">8s</button>
+          <button class="s-btn" data-b="10">10s</button>
+          <button class="s-btn" data-b="15">15s</button>
+        </div>
+        <input class="s-input" id="custom-bonus" type="number" placeholder="Custom threshold (seconds)" min="1" max="120">
+      </div>
+    </div>
+
+    <!-- Languages -->
+    <div class="s-section">
+      <div class="s-lbl">🌐 Translation Languages <span class="badge" style="background:var(--accent3)">Multi-Select</span></div>
+      <div style="font-size:0.52rem;color:#bbb;letter-spacing:0.5px;margin-bottom:10px;">Select languages to see word meanings translated (uses free MyMemory API)</div>
+      <div class="lang-grid" id="lang-grid"></div>
+    </div>
+
+    <button class="btn-modal dark" onclick="applySettings()">APPLY & START HUNT →</button>
+    <button class="btn-modal light" onclick="closeOverlays()">CANCEL</button>
+  </div>
+</div>
+
+<script>
+// ──────────────────────────────────────────────────
+//  APIs USED (all free, no key required):
+//  1. Free Dictionary API  — https://api.dictionaryapi.dev (definitions)
+//  2. MyMemory API         — https://api.mymemory.translated.net (translations, 5000 chars/day free)
+// ──────────────────────────────────────────────────
+
+const SEED_WORDS = [
+  "brave","crisp","flame","grace","harsh","ideal","jolly","knack","lemon","maple",
+  "noble","orbit","prism","quest","radar","siren","thorn","vivid","waltz","xenon",
+  "yacht","abode","bliss","chord","drift","ember","frond","gleam","haste","infer",
+  "judge","karma","lunar","mirth","nexus","optic","plumb","quirk","ridge","scout",
+  "tepid","umbra","vapor","wrath","yield","bloom","crane","depot","evoke","forge",
+  "graze","hazel","irony","joust","ledge","manor","novel","onset","pivot","quart",
+  "realm","sheen","trout","unity","valve","whirl","exact","zephyr","acorn","brisk",
+  "cloak","dwarf","envoy","flint","guile","heron","inlet","jumbo","kneel","lance",
+  "mercy","nerve","otter","plume","quota","raven","scorn","tidal","usher","vouch",
+  "wheat","expel","yearn","azure","brace","cairn","delta","epoch","frown","groan",
+  "humid","joker","knave","lyric","midst","nadir","ounce","psalm","rivet","swamp",
+  "totem","ultra","vigor","wreck","exert","album","blunt","craft","dense","elbow",
+  "fluke","gloom","hatch","ivory","jewel","kudos","latch","maxim","notch","oxide",
+  "plank","query","risky","stern","talon","unify","verse","windy","yeoman","zonal",
+  "agile","baron","comet","dingo","enact","frail","glove","hinge","inane","jaunt",
+  "knelt","lithe","mourn","nymph","oaken","perch","quaff","repel","sulky","twine",
+];
+
+// Available translation languages (using ISO codes for MyMemory API)
+const LANGUAGES = [
+  { code: 'hi', name: 'Hindi',      flag: '🇮🇳' },
+  { code: 'es', name: 'Spanish',    flag: '🇪🇸' },
+  { code: 'fr', name: 'French',     flag: '🇫🇷' },
+  { code: 'de', name: 'German',     flag: '🇩🇪' },
+  { code: 'zh', name: 'Chinese',    flag: '🇨🇳' },
+  { code: 'ar', name: 'Arabic',     flag: '🇸🇦' },
+  { code: 'pt', name: 'Portuguese', flag: '🇧🇷' },
+  { code: 'ru', name: 'Russian',    flag: '🇷🇺' },
+  { code: 'ja', name: 'Japanese',   flag: '🇯🇵' },
+  { code: 'ko', name: 'Korean',     flag: '🇰🇷' },
+  { code: 'it', name: 'Italian',    flag: '🇮🇹' },
+  { code: 'tr', name: 'Turkish',    flag: '🇹🇷' },
+  { code: 'bn', name: 'Bengali',    flag: '🇧🇩' },
+  { code: 'ur', name: 'Urdu',       flag: '🇵🇰' },
+  { code: 'nl', name: 'Dutch',      flag: '🇳🇱' },
+  { code: 'pl', name: 'Polish',     flag: '🇵🇱' },
+  { code: 'sv', name: 'Swedish',    flag: '🇸🇪' },
+  { code: 'ta', name: 'Tamil',      flag: '🇮🇳' },
+];
+
+const GRID_SIZE = 10;
+const LINE_COLORS = [
+  'rgba(200,65,10,0.5)','rgba(42,107,62,0.5)','rgba(26,58,122,0.5)',
+  'rgba(184,134,11,0.5)','rgba(120,40,120,0.5)','rgba(0,120,140,0.5)',
+  'rgba(160,80,20,0.5)','rgba(80,120,40,0.5)',
+];
+
+// ── CONFIG ──
+let cfg = {
+  timeLimit: 120,
+  wordCount: 15,      // 0 = infinite
+  bonusEnabled: false,
+  bonusThreshold: 5,  // seconds
+  languages: [],      // selected lang codes
+};
+
+// ── STATE ──
+let wordQueue = [], activeWord = null, completedWords = [];
+let pendingFetch = new Set();
+let grid = [], drawnLines = [], foundCellSet = new Set();
+let isDown = false, startCell = null, selCells = [];
+let score = 0, streak = 0, timeLeft = 0, timerID = null, gameActive = false;
+let bonusElapsed = 0, bonusTimerID = null; // time spent on current word
+let totalResets = 0;
+let shuffledSeeds = [], seedIdx = 0;
+let currentTranslations = {}; // lang -> translated text
+
+// ──────────────────────────────────────────────────
+//  BUILD SETTINGS UI
+// ──────────────────────────────────────────────────
+function buildLangGrid() {
+  const el = document.getElementById('lang-grid');
+  el.innerHTML = '';
+  LANGUAGES.forEach(lang => {
+    const div = document.createElement('div');
+    div.className = 'lang-option' + (cfg.languages.includes(lang.code) ? ' sel' : '');
+    div.dataset.code = lang.code;
+    div.innerHTML = `<span class="flag">${lang.flag}</span><span class="lname">${lang.name}</span>`;
+    div.onclick = () => {
+      div.classList.toggle('sel');
+      updateActiveLangPills();
+    };
+    el.appendChild(div);
+  });
+}
+
+function updateActiveLangPills() {
+  const pills = document.getElementById('active-lang-pills');
+  const selected = [...document.querySelectorAll('.lang-option.sel')].map(d => d.dataset.code);
+  pills.innerHTML = '';
+  selected.forEach(code => {
+    const lang = LANGUAGES.find(l => l.code === code);
+    if (!lang) return;
+    const pill = document.createElement('div');
+    pill.className = 'lang-pill active-lang';
+    pill.textContent = lang.flag + ' ' + lang.name.substring(0,3).toUpperCase();
+    pills.appendChild(pill);
+  });
+}
+
+// ── Settings toggle handlers ──
+document.querySelectorAll('[data-t]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-t]').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); document.getElementById('custom-sec').value = '';
+}));
+document.querySelectorAll('[data-w]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-w]').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); document.getElementById('custom-words').value = '';
+}));
+document.querySelectorAll('[data-b]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-b]').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); document.getElementById('custom-bonus').value = '';
+}));
+
+function toggleBonus() {
+  const t = document.getElementById('bonus-toggle');
+  t.classList.toggle('on');
+  document.getElementById('bonus-sub-box').classList.toggle('visible', t.classList.contains('on'));
+}
+
+function syncSettingsUI() {
+  document.querySelectorAll('[data-t]').forEach(b => b.classList.toggle('on', +b.dataset.t === cfg.timeLimit));
+  const wBtns = document.querySelectorAll('[data-w]');
+  wBtns.forEach(b => b.classList.toggle('on', +b.dataset.w === cfg.wordCount));
+  document.querySelectorAll('[data-b]').forEach(b => b.classList.toggle('on', +b.dataset.b === cfg.bonusThreshold));
+  document.getElementById('custom-sec').value = '';
+  document.getElementById('custom-words').value = '';
+  document.getElementById('custom-bonus').value = '';
+  const bt = document.getElementById('bonus-toggle');
+  bt.classList.toggle('on', cfg.bonusEnabled);
+  document.getElementById('bonus-sub-box').classList.toggle('visible', cfg.bonusEnabled);
+  buildLangGrid();
+}
+
+function applySettings() {
+  const cSec = parseInt(document.getElementById('custom-sec').value);
+  const tBtn = document.querySelector('[data-t].on');
+  cfg.timeLimit = (cSec && cSec >= 10) ? cSec : +(tBtn?.dataset.t || 120);
+
+  const cWords = parseInt(document.getElementById('custom-words').value);
+  const wBtn = document.querySelector('[data-w].on');
+  if (cWords && cWords >= 1) cfg.wordCount = cWords;
+  else cfg.wordCount = +(wBtn?.dataset.w ?? 15);
+
+  cfg.bonusEnabled = document.getElementById('bonus-toggle').classList.contains('on');
+  const cBonus = parseInt(document.getElementById('custom-bonus').value);
+  const bBtn = document.querySelector('[data-b].on');
+  cfg.bonusThreshold = (cBonus && cBonus >= 1) ? cBonus : +(bBtn?.dataset.b || 5);
+
+  cfg.languages = [...document.querySelectorAll('.lang-option.sel')].map(d => d.dataset.code);
+
+  closeOverlays();
+  startGame();
+}
+
+function openSettings() { syncSettingsUI(); document.getElementById('cfg-overlay').classList.add('on'); }
+function closeOverlays() { document.querySelectorAll('.overlay').forEach(o => o.classList.remove('on')); }
+
+// ──────────────────────────────────────────────────
+//  GAME START
+// ──────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  syncSettingsUI();
+  buildLangGrid();
+  startGame();
+});
+
+async function startGame() {
+  clearInterval(timerID); clearInterval(bonusTimerID);
+  wordQueue = []; activeWord = null; completedWords = []; pendingFetch.clear();
+  grid = []; drawnLines = []; foundCellSet.clear();
+  isDown = false; selCells = [];
+  score = 0; streak = 0; totalResets = 0;
+  gameActive = true;
+  timeLeft = cfg.timeLimit;
+  bonusElapsed = 0;
+  currentTranslations = {};
+
+  shuffledSeeds = [...SEED_WORDS].sort(() => Math.random() - 0.5);
+  seedIdx = 0;
+
+  closeOverlays();
+  document.getElementById('found-list').innerHTML = '';
+  document.getElementById('found-strip').style.display = 'none';
+  document.getElementById('trans-section').style.display = 'none';
+  document.getElementById('hero-slot').innerHTML = '';
+  document.getElementById('word-queue').innerHTML = '';
+  document.getElementById('queue-footer').textContent = 'Loading words…';
+  updateHeader();
+  updateBonusIndicator();
+  updateActiveLangPills();
+
+  await prefetchWords(6);
+  await advanceWord();
+
+  updateTimerDisplay();
+  timerID = setInterval(tick, 1000);
+  maintainQueue();
+}
+
+async function prefetchWords(n) {
+  const p = [];
+  for (let i = 0; i < n; i++) { const w = nextSeed(); if (w) p.push(fetchWord(w)); }
+  await Promise.allSettled(p);
+}
+
+function nextSeed() {
+  if (seedIdx >= shuffledSeeds.length) { shuffledSeeds = [...SEED_WORDS].sort(() => Math.random() - 0.5); seedIdx = 0; }
+  return shuffledSeeds[seedIdx++];
+}
+
+async function fetchWord(raw) {
+  const word = raw.toUpperCase();
+  if (pendingFetch.has(word)) return;
+  if (wordQueue.find(w => w.word === word)) return;
+  if (completedWords.find(w => w.word === word)) return;
+  if (activeWord?.word === word) return;
+  if (word.length < 4 || word.length > GRID_SIZE) return;
+  pendingFetch.add(word);
+  try {
+    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${raw.toLowerCase()}`);
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    const entry = data[0], meaning = entry.meanings?.[0], def = meaning?.definitions?.[0];
+    wordQueue.push({
+      word, pos: meaning?.partOfSpeech || 'word',
+      def: def?.definition || 'No definition found.',
+      example: def?.example || null,
+      phonetic: entry.phonetic || entry.phonetics?.find(p=>p.text)?.text || null,
+    });
+  } catch { /* skip */ } finally { pendingFetch.delete(word); }
+}
+
+async function maintainQueue() {
+  while (gameActive) {
+    if (wordQueue.length < 5) { const w = nextSeed(); if (w) await fetchWord(w); }
+    await sleep(300);
+  }
+}
+
+// ──────────────────────────────────────────────────
+//  ADVANCE WORD
+// ──────────────────────────────────────────────────
+async function advanceWord() {
+  let attempts = 0;
+  while (wordQueue.length === 0 && attempts < 25) {
+    const w = nextSeed(); if (w) await fetchWord(w);
+    if (wordQueue.length === 0) await sleep(400);
+    attempts++;
+  }
+  activeWord = wordQueue.length ? wordQueue.shift() : { word:'QUEST', pos:'noun', def:'A long search for something.', phonetic:null, example:null };
+
+  // reset bonus elapsed
+  bonusElapsed = 0;
+  clearInterval(bonusTimerID);
+  if (cfg.bonusEnabled && gameActive) {
+    bonusTimerID = setInterval(() => { bonusElapsed++; updateBonusRing(); }, 1000);
+  }
+
+  buildNewGrid();
+  renderQueueUI();
+  renderDictHero(activeWord);
+  translateWord(activeWord);
+  updateQueueFooter();
+}
+
+// ──────────────────────────────────────────────────
+//  TRANSLATION
+// ──────────────────────────────────────────────────
+async function translateWord(wObj) {
+  if (!cfg.languages.length) {
+    document.getElementById('trans-section').style.display = 'none';
+    return;
+  }
+  document.getElementById('trans-section').style.display = 'block';
+  const content = document.getElementById('trans-content');
+  content.innerHTML = '';
+  currentTranslations = {};
+
+  cfg.languages.forEach(code => {
+    const lang = LANGUAGES.find(l => l.code === code);
+    const div = document.createElement('div');
+    div.className = 'trans-entry';
+    div.id = `trans-${code}`;
+    div.innerHTML = `<div class="trans-lang-name">${lang.flag} ${lang.name}</div>
+      <div class="trans-loading"><div class="dspin"><span></span><span></span><span></span></div><span style="margin-left:4px;font-size:0.55rem;color:#444;">Translating…</span></div>`;
+    content.appendChild(div);
+  });
+
+  // Translate the definition text (not just the word)
+  for (const code of cfg.languages) {
+    translateEntry(wObj, code);
+  }
+}
+
+async function translateEntry(wObj, code) {
+  const textToTranslate = `${wObj.word}: ${wObj.def}`;
+  try {
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(textToTranslate)}&langpair=en|${code}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const translated = data?.responseData?.translatedText || '—';
+    currentTranslations[code] = translated;
+
+    const el = document.getElementById(`trans-${code}`);
+    if (el) {
+      const lang = LANGUAGES.find(l => l.code === code);
+      el.innerHTML = `<div class="trans-lang-name">${lang.flag} ${lang.name}</div>
+        <div class="trans-text">${translated}</div>`;
+    }
+  } catch {
+    const el = document.getElementById(`trans-${code}`);
+    if (el) {
+      const lang = LANGUAGES.find(l => l.code === code);
+      el.innerHTML = `<div class="trans-lang-name">${lang.flag} ${lang.name}</div>
+        <div class="trans-text" style="color:#444;">Translation unavailable</div>`;
+    }
+  }
+}
+
+// ──────────────────────────────────────────────────
+//  GRID
+// ──────────────────────────────────────────────────
+const DIRS = [[0,1],[1,0],[1,1],[1,-1],[0,-1],[-1,0],[-1,-1],[-1,1]];
+
+function buildNewGrid() {
+  grid = Array.from({length:GRID_SIZE}, () => Array(GRID_SIZE).fill(''));
+  drawnLines = []; foundCellSet.clear();
+  placeWord(activeWord.word);
+  const alpha = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  for (let r=0;r<GRID_SIZE;r++) for (let c=0;c<GRID_SIZE;c++) if (!grid[r][c]) grid[r][c]=alpha[Math.floor(Math.random()*26)];
+  renderGrid();
+}
+
+function placeWord(word) {
+  for (let t=0;t<300;t++) {
+    const [dr,dc] = DIRS[Math.floor(Math.random()*DIRS.length)];
+    const r=Math.floor(Math.random()*GRID_SIZE), c=Math.floor(Math.random()*GRID_SIZE);
+    const er=r+dr*(word.length-1), ec=c+dc*(word.length-1);
+    if (er<0||er>=GRID_SIZE||ec<0||ec>=GRID_SIZE) continue;
+    let ok=true;
+    for (let j=0;j<word.length;j++) { const g=grid[r+dr*j][c+dc*j]; if(g&&g!==word[j]){ok=false;break;} }
+    if (!ok) continue;
+    for (let j=0;j<word.length;j++) grid[r+dr*j][c+dc*j]=word[j];
+    return;
+  }
+}
+
+function renderGrid() {
+  const gridEl = document.getElementById('grid');
+  const cellPx = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell'))||36;
+  const gapPx  = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--gap'))||3;
+  gridEl.style.gridTemplateColumns = `repeat(${GRID_SIZE},${cellPx}px)`;
+  gridEl.innerHTML = '';
+  for (let r=0;r<GRID_SIZE;r++) for (let c=0;c<GRID_SIZE;c++) {
+    const el = document.createElement('div');
+    el.className = 'cell'; el.textContent = grid[r][c];
+    el.dataset.r = r; el.dataset.c = c;
+    el.addEventListener('mousedown', onDown);
+    el.addEventListener('mouseenter', onEnter);
+    el.addEventListener('touchstart', onTouchStart, {passive:false});
+    el.addEventListener('touchmove', onTouchMove, {passive:false});
+    if (foundCellSet.has(`${r},${c}`)) el.classList.add('found-cell');
+    gridEl.appendChild(el);
+  }
+  document.removeEventListener('mouseup', onUp);
+  document.removeEventListener('touchend', onUp);
+  document.addEventListener('mouseup', onUp);
+  document.addEventListener('touchend', onUp);
+
+  const canvas = document.getElementById('line-canvas');
+  const total = GRID_SIZE*cellPx + (GRID_SIZE-1)*gapPx;
+  canvas.width = total; canvas.height = total;
+  drawLines();
+}
+
+// ──────────────────────────────────────────────────
+//  INTERACTION
+// ──────────────────────────────────────────────────
+function cellOf(el) { return {r:+el.dataset.r, c:+el.dataset.c}; }
+function onDown(e) { if (!gameActive) return; isDown=true; startCell=cellOf(e.currentTarget); selCells=[startCell]; paintSel(); }
+function onEnter(e) { if (!isDown||!gameActive) return; const ln=lineFrom(startCell,cellOf(e.currentTarget)); if (ln){selCells=ln;paintSel();} }
+function onTouchStart(e) { e.preventDefault(); const t=e.touches[0]; const el=document.elementFromPoint(t.clientX,t.clientY); if(el?.classList.contains('cell')){isDown=true;startCell=cellOf(el);selCells=[startCell];paintSel();} }
+function onTouchMove(e) { e.preventDefault(); if(!isDown||!gameActive) return; const t=e.touches[0]; const el=document.elementFromPoint(t.clientX,t.clientY); if(el?.classList.contains('cell')){const ln=lineFrom(startCell,cellOf(el));if(ln){selCells=ln;paintSel();}} }
+function onUp() { if(!isDown) return; isDown=false; checkSelection(); selCells=[]; paintSel(); }
+
+function lineFrom(a,b) {
+  const dr=b.r-a.r, dc=b.c-a.c, len=Math.max(Math.abs(dr),Math.abs(dc));
+  if (!len) return [a];
+  if (Math.abs(dr)&&Math.abs(dc)&&Math.abs(dr)!==Math.abs(dc)) return null;
+  const sr=dr?dr/Math.abs(dr):0, sc=dc?dc/Math.abs(dc):0;
+  const cells=[]; for (let i=0;i<=len;i++) cells.push({r:a.r+sr*i,c:a.c+sc*i}); return cells;
+}
+
+function paintSel() {
+  document.querySelectorAll('.cell').forEach(el => {
+    const r=+el.dataset.r, c=+el.dataset.c;
+    el.classList.toggle('selecting', selCells.some(s=>s.r===r&&s.c===c));
+    el.classList.toggle('found-cell', foundCellSet.has(`${r},${c}`));
+  });
+}
+
+// ──────────────────────────────────────────────────
+//  CHECK SELECTION
+// ──────────────────────────────────────────────────
+async function checkSelection() {
+  if (!activeWord) return;
+  const word = selCells.map(({r,c})=>grid[r][c]).join('');
+  const rev  = word.split('').reverse().join('');
+  if (word !== activeWord.word && rev !== activeWord.word) {
+    if (selCells.length > 2) showHint('Not a match — keep hunting');
+    return;
+  }
+
+  // ✅ FOUND
+  clearInterval(bonusTimerID);
+  const timeTaken = bonusElapsed;
+  const pts = activeWord.word.length * 10 + Math.floor(timeLeft / 5) + (streak * 5);
+  score += pts; streak++;
+
+  // Check bonus reset
+  let bonusTriggered = false;
+  if (cfg.bonusEnabled && timeTaken < cfg.bonusThreshold) {
+    const lostTime = cfg.timeLimit - timeLeft;
+    timeLeft = cfg.timeLimit;
+    totalResets++;
+    bonusTriggered = true;
+    const tEl = document.getElementById('timer-big');
+    tEl.classList.remove('warn','danger');
+    tEl.classList.add('bonus-flash');
+    setTimeout(() => tEl.classList.remove('bonus-flash'), 700);
+    showBonusToast(`⚡ TIME RESET! Found in ${timeTaken}s (threshold: ${cfg.bonusThreshold}s)`);
+  }
+
+  const color = LINE_COLORS[completedWords.length % LINE_COLORS.length];
+  drawnLines.push({cells:[...selCells], color});
+  selCells.forEach(({r,c}) => foundCellSet.add(`${r},${c}`));
+  drawLines(); paintSel();
+
+  completedWords.push(activeWord);
+  showToast(`✓ ${activeWord.word}  +${pts}pts`, 'green');
+  updateFoundList(activeWord, pts);
+  updateHeader();
+  updateProgress();
+  updateBonusRing();
+
+  // Check win
+  const infinite = cfg.wordCount === 0;
+  if (!infinite && completedWords.length >= cfg.wordCount) {
+    await sleep(500); endGame(true); return;
+  }
+
+  renderQueueUI();
+  await sleep(350);
+  await advanceWord();
+}
+
+// ──────────────────────────────────────────────────
+//  DRAW LINES
+// ──────────────────────────────────────────────────
+function drawLines() {
+  const canvas = document.getElementById('line-canvas');
+  const ctx = canvas.getContext('2d');
+  const cellPx = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell'))||36;
+  const gapPx  = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--gap'))||3;
+  const step = cellPx+gapPx, half = cellPx/2;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawnLines.forEach(({cells,color}) => {
+    if (!cells.length) return;
+    ctx.strokeStyle=color; ctx.lineWidth=cellPx-4; ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath(); ctx.moveTo(cells[0].c*step+half, cells[0].r*step+half);
+    cells.slice(1).forEach(({r,c})=>ctx.lineTo(c*step+half,r*step+half));
+    ctx.stroke();
+  });
+}
+
+// ──────────────────────────────────────────────────
+//  TIMER
+// ──────────────────────────────────────────────────
+function tick() {
+  if (!gameActive) return;
+  timeLeft--;
+  updateTimerDisplay();
+  if (timeLeft <= 0) { timeLeft=0; updateTimerDisplay(); endGame(false); }
+}
+
+function updateTimerDisplay() {
+  const el = document.getElementById('timer-big');
+  const m=Math.floor(timeLeft/60), s=timeLeft%60;
+  el.textContent = `${m}:${s.toString().padStart(2,'0')}`;
+  if (!el.classList.contains('bonus-flash')) {
+    el.classList.remove('warn','danger');
+    if (timeLeft<=10) el.classList.add('danger');
+    else if (timeLeft<=30) el.classList.add('warn');
+  }
+}
+
+// ──────────────────────────────────────────────────
+//  BONUS RING
+// ──────────────────────────────────────────────────
+function updateBonusRing() {
+  const wrap = document.getElementById('bonus-ring-wrap');
+  const num  = document.getElementById('bonus-ring-num');
+  if (!cfg.bonusEnabled || !gameActive) { wrap.classList.remove('visible'); return; }
+  const remaining = cfg.bonusThreshold - bonusElapsed;
+  if (remaining > 0) {
+    wrap.classList.add('visible');
+    num.textContent = remaining;
+  } else {
+    wrap.classList.remove('visible');
+  }
+}
+
+function updateBonusIndicator() {
+  const el = document.getElementById('bonus-indicator');
+  const txt = document.getElementById('bonus-text');
+  if (cfg.bonusEnabled) {
+    el.classList.remove('off');
+    txt.textContent = `bonus: find < ${cfg.bonusThreshold}s`;
+  } else {
+    el.classList.add('off');
+    txt.textContent = 'bonus off';
+  }
+}
+
+// ──────────────────────────────────────────────────
+//  END GAME
+// ──────────────────────────────────────────────────
+function endGame(won) {
+  gameActive = false; clearInterval(timerID); clearInterval(bonusTimerID);
+  document.getElementById('bonus-ring-wrap').classList.remove('visible');
+  if (won) {
+    document.getElementById('w-found').textContent = completedWords.length;
+    document.getElementById('w-time').textContent = timeLeft+'s';
+    document.getElementById('w-score').textContent = score;
+    document.getElementById('w-resets').textContent = totalResets;
+    document.getElementById('win-overlay').classList.add('on');
+  } else {
+    const missed = cfg.wordCount === 0 ? 0 : cfg.wordCount - completedWords.length;
+    document.getElementById('l-found').textContent = completedWords.length;
+    document.getElementById('l-missed').textContent = missed;
+    document.getElementById('l-score').textContent = score;
+    document.getElementById('lose-overlay').classList.add('on');
+  }
+}
+
+function restartGame() { closeOverlays(); startGame(); }
+
+// ──────────────────────────────────────────────────
+//  UI RENDER
+// ──────────────────────────────────────────────────
+function renderQueueUI() {
+  const el = document.getElementById('word-queue');
+  el.innerHTML = '';
+  if (activeWord) {
+    const d = document.createElement('div');
+    d.className = 'wcard active anim-reveal';
+    d.innerHTML = `<div class="dot"></div>${activeWord.word}`;
+    el.appendChild(d);
+  }
+  wordQueue.slice(0,4).forEach(w => {
+    const d = document.createElement('div');
+    d.className = 'wcard';
+    d.innerHTML = `<div class="dot"></div>${w.word}`;
+    el.appendChild(d);
+  });
+  completedWords.slice().reverse().slice(0,5).forEach(w => {
+    const d = document.createElement('div');
+    d.className = 'wcard found';
+    d.innerHTML = `<div class="dot"></div>${w.word}`;
+    el.appendChild(d);
+  });
+}
+
+function renderDictHero(wObj) {
+  document.getElementById('hero-slot').innerHTML = `
+    <div class="meaning-hero anim-reveal">
+      <div class="hero-tag">▸ find this word</div>
+      <div class="hero-word">${wObj.word}</div>
+      ${wObj.phonetic ? `<div class="hero-phonetic">${wObj.phonetic}</div>` : ''}
+      <div class="hero-pos">${wObj.pos}</div>
+      <div class="hero-def">${wObj.def}</div>
+      ${wObj.example ? `<div class="hero-example">"${wObj.example}"</div>` : ''}
+    </div>`;
+}
+
+function updateFoundList(wObj, pts) {
+  const strip = document.getElementById('found-strip');
+  const list  = document.getElementById('found-list');
+  strip.style.display = 'block';
+  const e = document.createElement('div');
+  e.className = 'found-entry anim-reveal';
+  e.innerHTML = `<span class="found-word">${wObj.word}</span><span class="found-pts">+${pts}</span>`;
+  list.prepend(e);
+}
+
+function updateQueueFooter() {
+  const infinite = cfg.wordCount === 0;
+  const rem = infinite ? '∞' : cfg.wordCount - completedWords.length;
+  document.getElementById('queue-footer').textContent =
+    `${completedWords.length}/${infinite?'∞':cfg.wordCount} found · ${rem} remaining`;
+}
+
+function updateHeader() {
+  document.getElementById('score-val').textContent = score;
+  document.getElementById('found-val').textContent = completedWords.length;
+  document.getElementById('streak-val').textContent = streak;
+  document.getElementById('timer-sub').textContent =
+    cfg.bonusEnabled ? `reset if < ${cfg.bonusThreshold}s` : 'time remaining';
+}
+
+function updateProgress() {
+  const infinite = cfg.wordCount === 0;
+  const pct = infinite ? 0 : (completedWords.length / cfg.wordCount) * 100;
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('prog-text').textContent =
+    `${completedWords.length} / ${infinite ? '∞' : cfg.wordCount} found`;
+}
+
+// ──────────────────────────────────────────────────
+//  TOAST
+// ──────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.className = '', 2200);
+}
+
+let bonusToastTimer;
+function showBonusToast(msg) {
+  const t = document.getElementById('bonus-toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(bonusToastTimer);
+  bonusToastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function showHint(msg) {
+  const el = document.getElementById('grid-hint');
+  el.textContent = msg;
+  setTimeout(() => el.textContent = 'drag across letters to select a word', 2000);
+}
+
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+</script>
+</body>
+</html>
