@@ -1,0 +1,1471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>LEXIS — Word Hunt</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
+<style>
+/* ─────────────────────────────────────────────
+   DESIGN TOKENS  — all sizes in relative units
+───────────────────────────────────────────── */
+:root {
+  --ink:     #0d0d0d;
+  --paper:   #f5f0e8;
+  --cream:   #ede7d6;
+  --warm:    #d4c9b0;
+  --red:     #c8410a;
+  --green:   #2a6b3e;
+  --blue:    #1a3a7a;
+  --gold:    #f0b030;
+  /* cell size set by JS — fallback 34px */
+  --cell:    34px;
+  --gap:     2px;
+  /* topbar height is 8.5% of viewport height, clamped */
+  --hdr:     clamp(44px, 8.5vh, 62px);
+  --safe-b:  env(safe-area-inset-bottom, 0px);
+  /* font scale: 1 unit = clamp(11px … 14px) */
+  --fs:      clamp(11px, 1.4vw + 0.3vh, 14px);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  width: 100%; height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'DM Mono', monospace;
+  font-size: var(--fs);
+  overflow: hidden;
+  touch-action: manipulation;
+}
+
+/* paper texture */
+body::after {
+  content: ''; position: fixed; inset: 0; z-index: 999; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+}
+
+/* ─────────────────────────────────────────────
+   OUTER SHELL
+───────────────────────────────────────────── */
+#shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100dvh;   /* accounts for mobile browser chrome */
+  overflow: hidden;
+}
+
+/* ─────────────────────────────────────────────
+   TOP BAR  — shrinks proportionally
+───────────────────────────────────────────── */
+#topbar {
+  flex: 0 0 var(--hdr);
+  background: var(--ink);
+  color: var(--paper);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 clamp(10px, 2vw, 24px);
+  border-bottom: clamp(2px, 0.4vw, 3px) solid var(--red);
+  z-index: 50;
+  gap: clamp(6px, 1.5vw, 16px);
+  min-width: 0;
+}
+
+.tb-left  { display: flex; align-items: center; gap: clamp(6px, 1vw, 12px); min-width: 0; flex-shrink: 1; }
+.tb-mid   { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+.tb-right { display: flex; align-items: center; gap: clamp(4px, 0.8vw, 8px); flex-shrink: 0; }
+
+.logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(1.3rem, 3.5vw + 0.5vh, 2.1rem);
+  letter-spacing: 0.3em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.tagline {
+  font-size: clamp(0.5rem, 1vw, 0.65rem);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #555;
+  border-left: 1px solid #333;
+  padding-left: clamp(6px, 1vw, 12px);
+  line-height: 1.5;
+  display: none; /* shown on wider screens via media query */
+}
+
+#timer {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(1.4rem, 4vw + 0.5vh, 2.2rem);
+  letter-spacing: 0.25em;
+  line-height: 1;
+  color: var(--paper);
+  font-variant-numeric: tabular-nums;
+  transition: color .3s;
+  white-space: nowrap;
+}
+#timer.warn   { color: var(--gold); }
+#timer.danger { color: var(--red); animation: tblink .6s infinite; }
+#timer.bflash { animation: bflash .55s ease; }
+@keyframes tblink { 50%{opacity:.4} }
+@keyframes bflash {
+  0%   { color:#4af0b0; transform:scale(1.14); }
+  55%  { color:#4af0b0; }
+  100% { color:var(--paper); transform:scale(1); }
+}
+#timer-sub {
+  font-size: clamp(0.38rem, 0.9vw, 0.55rem);
+  letter-spacing: 0.2em; text-transform: uppercase; color: #555;
+}
+
+/* stat chips */
+.chips { display: flex; gap: clamp(3px, 0.6vw, 6px); }
+.chip {
+  display: flex; flex-direction: column; align-items: center;
+  padding: clamp(2px, 0.4vh, 5px) clamp(6px, 1vw, 12px);
+  border: 1px solid #252525; border-radius: 2px;
+  min-width: clamp(32px, 5vw, 48px);
+}
+.chip-v {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(0.9rem, 2.5vw + 0.3vh, 1.35rem);
+  line-height: 1; letter-spacing: 0.15em; color: var(--paper);
+}
+.chip-v.gold { color: var(--gold); }
+.chip-l {
+  font-size: clamp(0.3rem, 0.7vw, 0.45rem);
+  letter-spacing: 0.2em; text-transform: uppercase; color: #555;
+}
+
+.ibtn {
+  width: clamp(28px, 4.5vw, 38px);
+  height: clamp(28px, 4.5vw, 38px);
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid #333; border-radius: 2px;
+  color: #888; cursor: pointer;
+  font-size: clamp(0.75rem, 2vw, 1.1rem);
+  transition: all .15s; flex-shrink: 0;
+}
+.ibtn:hover, .ibtn:active { border-color: var(--paper); color: var(--paper); }
+.ibtn.red { background: var(--red); border-color: var(--red); color: #fff; }
+
+/* ─────────────────────────────────────────────
+   GAME AREA — fills remaining height
+───────────────────────────────────────────── */
+#game {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ─────────────────────────────────────────────
+   NARROW LAYOUT  (< 640px)
+   Stacked: word-strip → grid → meaning
+   Everything visible at once, scrolls if needed
+───────────────────────────────────────────── */
+#game.narrow {
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(10px + var(--safe-b));
+}
+#game.narrow::-webkit-scrollbar { display: none; }
+
+/* ─────────────────────────────────────────────
+   WIDE LAYOUT  (≥ 640px)
+   3 columns: queue | grid | dictionary
+───────────────────────────────────────────── */
+#game.wide {
+  flex-direction: row;
+}
+
+/* ─────────────────────────────────────────────
+   NARROW — WORD STRIP (above grid)
+───────────────────────────────────────────── */
+#word-strip {
+  background: var(--ink);
+  color: var(--paper);
+  padding: clamp(8px,1.5vh,14px) clamp(10px,2.5vw,18px) clamp(6px,1.2vh,12px);
+  border-bottom: 2px solid var(--red);
+  flex-shrink: 0;
+  display: none; /* shown only in narrow */
+}
+#game.narrow #word-strip { display: block; }
+
+.ws-top {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: clamp(4px, 0.8vh, 8px);
+}
+.ws-tag {
+  font-size: clamp(0.38rem, 1vw, 0.52rem);
+  letter-spacing: 0.3em; text-transform: uppercase; color: #555;
+}
+.ws-bonus {
+  font-size: clamp(0.38rem, 1vw, 0.52rem);
+  letter-spacing: 0.18em; text-transform: uppercase;
+  display: flex; align-items: center; gap: 5px; color: var(--green);
+}
+.ws-bonus.off { color: #555; }
+.wsbdot {
+  width: clamp(4px, 1vw, 6px); height: clamp(4px, 1vw, 6px);
+  border-radius: 50%; background: var(--green); animation: pg 1.4s infinite;
+}
+.ws-bonus.off .wsbdot { background: #555; animation: none; }
+@keyframes pg { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+.ws-word {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(1.5rem, 7vw + 0.5vh, 2.6rem);
+  letter-spacing: 0.25em; line-height: 1; color: var(--paper);
+  margin-bottom: clamp(2px, 0.4vh, 5px);
+}
+.ws-pos {
+  font-family: 'Instrument Serif', serif; font-style: italic;
+  font-size: clamp(0.6rem, 1.8vw, 0.82rem); color: #777;
+  margin-bottom: clamp(5px, 1vh, 10px);
+}
+
+/* found-chips horizontal scroll */
+.ws-chips {
+  display: flex; gap: clamp(4px, 1vw, 7px);
+  overflow-x: auto; padding-bottom: 2px;
+}
+.ws-chips::-webkit-scrollbar { display: none; }
+.ws-chip {
+  flex-shrink: 0;
+  padding: clamp(2px,.5vh,4px) clamp(7px,1.5vw,12px);
+  border-radius: 99px; border: 1px solid #2a2a2a;
+  font-size: clamp(0.45rem, 1.2vw, 0.6rem);
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: #555; text-decoration: line-through; text-decoration-color: #3a3a3a;
+  white-space: nowrap;
+}
+
+/* progress */
+.ws-prog { margin-top: clamp(6px, 1.2vh, 10px); }
+.ws-rail { height: 2px; background: #2a2a2a; overflow: hidden; border-radius: 1px; }
+.ws-fill { height: 100%; background: var(--green); width: 0%; transition: width .5s cubic-bezier(.17,.67,.3,1.2); }
+.ws-ptxt {
+  font-size: clamp(0.32rem, 0.9vw, 0.45rem);
+  letter-spacing: 0.2em; text-transform: uppercase; color: #555;
+  margin-top: clamp(2px, 0.4vh, 4px); text-align: right;
+}
+
+/* ─────────────────────────────────────────────
+   GRID SECTION  — always visible, centre
+───────────────────────────────────────────── */
+#grid-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  position: relative;
+  overflow: hidden;
+  gap: clamp(6px, 1.2vh, 12px);
+  padding: clamp(10px,2vh,18px) clamp(10px,2vw,18px);
+}
+
+/* narrow: fixed height = whatever is left after strip + meaning */
+#game.narrow #grid-section {
+  flex-shrink: 0;
+  padding: clamp(8px,1.5vh,14px) clamp(8px,1.5vw,14px);
+}
+/* wide: takes all flex space */
+#game.wide #grid-section { flex: 1; }
+
+/* ruled-line bg */
+#grid-section::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background-image: repeating-linear-gradient(
+    transparent, transparent 27px,
+    rgba(0,0,0,.04) 27px, rgba(0,0,0,.04) 28px
+  );
+}
+
+.grid-wrap {
+  position: relative; z-index: 2;
+  box-shadow: clamp(3px,0.8vw,6px) clamp(3px,0.8vw,6px) 0 var(--warm),
+              clamp(5px,1.2vw,10px) clamp(5px,1.2vw,10px) 0 rgba(0,0,0,.07);
+}
+
+#grid {
+  display: grid;
+  gap: var(--gap);
+  background: var(--warm);
+  border: 2px solid var(--ink);
+  user-select: none;
+  touch-action: none;
+}
+
+.cell {
+  width: var(--cell); height: var(--cell);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'DM Mono', monospace; font-weight: 500;
+  font-size: calc(var(--cell) * 0.42);  /* always proportional to cell */
+  text-transform: uppercase; cursor: pointer;
+  background: var(--paper); transition: background .07s; color: var(--ink);
+}
+.cell.sel   { background: var(--ink); color: var(--paper); }
+.cell.done  { color: var(--ink); }
+
+#lcanvas {
+  position: absolute; top: 0; left: 0; pointer-events: none; z-index: 3;
+}
+
+/* bonus ring */
+#bonus-ring {
+  position: absolute; top: clamp(6px,1.2vh,12px); right: clamp(6px,1.5vw,14px);
+  z-index: 5; text-align: center; display: none;
+}
+#bonus-ring.vis { display: block; }
+.br-num {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(0.85rem, 2.5vw, 1.2rem);
+  color: var(--green); line-height: 1;
+}
+.br-lbl {
+  font-size: clamp(0.3rem, 0.9vw, 0.42rem);
+  letter-spacing: 0.2em; text-transform: uppercase; color: var(--green);
+}
+
+/* progress bar (shown in wide mode under grid) */
+.prog-wrap {
+  width: 100%; z-index: 2;
+  max-width: calc(var(--cell) * 10 + 9 * var(--gap) + 4px);
+}
+.prog-rail { height: 3px; background: var(--warm); overflow: hidden; }
+.prog-fill { height: 100%; background: var(--ink); width: 0%; transition: width .5s cubic-bezier(.17,.67,.3,1.2); }
+.prog-txt {
+  font-size: clamp(0.34rem, 0.9vw, 0.48rem);
+  letter-spacing: 0.22em; text-transform: uppercase; color: #aaa;
+  text-align: right; margin-top: 3px;
+}
+.hint {
+  font-size: clamp(0.34rem, 1vw, 0.5rem);
+  letter-spacing: 0.25em; text-transform: uppercase; color: #bbb;
+  z-index: 2; text-align: center;
+}
+
+/* ─────────────────────────────────────────────
+   NARROW — MEANING CARD (below grid)
+───────────────────────────────────────────── */
+#meaning-card {
+  margin: 0 clamp(8px,2vw,14px) clamp(8px,1.5vh,14px);
+  background: var(--ink); color: var(--paper);
+  border-left: clamp(2px,0.5vw,4px) solid var(--red);
+  border-radius: 2px;
+  flex-shrink: 0;
+  display: none;
+}
+#game.narrow #meaning-card { display: block; }
+
+.mc-inner { padding: clamp(10px,2vh,16px) clamp(10px,2.5vw,16px) clamp(8px,1.5vh,14px); }
+.mc-tag {
+  font-size: clamp(0.36rem, 1vw, 0.48rem);
+  letter-spacing: 0.35em; text-transform: uppercase; color: var(--red);
+  margin-bottom: clamp(3px,.6vh,6px);
+}
+.mc-word {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(1.3rem, 5.5vw + 0.5vh, 2.2rem);
+  letter-spacing: 0.25em; color: var(--paper); line-height: 1;
+  margin-bottom: clamp(2px,.4vh,4px);
+}
+.mc-phon {
+  font-size: clamp(0.5rem, 1.4vw, 0.66rem);
+  color: #555; letter-spacing: 0.08em;
+  margin-bottom: clamp(3px,.6vh,6px);
+}
+.mc-pos {
+  font-family: 'Instrument Serif', serif; font-style: italic;
+  font-size: clamp(0.58rem, 1.6vw, 0.78rem); color: #777;
+  margin-bottom: clamp(5px,1vh,9px);
+}
+.mc-def {
+  font-size: clamp(0.62rem, 1.7vw, 0.78rem);
+  line-height: 1.65; color: #ccc;
+}
+.mc-ex {
+  margin-top: clamp(5px,1vh,8px);
+  font-family: 'Instrument Serif', serif; font-style: italic;
+  font-size: clamp(0.58rem, 1.5vw, 0.72rem); color: #555;
+  border-left: 2px solid #2a2a2a; padding-left: clamp(6px,1.5vw,10px);
+  line-height: 1.5;
+}
+
+/* translations in meaning card */
+.mc-trans { padding: clamp(8px,1.5vh,12px) clamp(10px,2.5vw,16px); border-top: 1px solid #1a1a1a; }
+.mc-trans-lbl {
+  font-size: clamp(0.34rem, 0.9vw, 0.44rem);
+  letter-spacing: 0.28em; text-transform: uppercase; color: #444;
+  margin-bottom: clamp(6px,1.2vh,10px);
+}
+.mc-te { margin-bottom: clamp(7px,1.4vh,10px); }
+.mc-te:last-child { margin-bottom: 0; }
+.mc-te-lang {
+  font-size: clamp(0.4rem, 1vw, 0.5rem);
+  letter-spacing: 0.18em; text-transform: uppercase; color: #666;
+  margin-bottom: 2px;
+}
+.mc-te-txt { font-size: clamp(0.62rem, 1.7vw, 0.76rem); color: #bbb; line-height: 1.5; }
+
+/* ─────────────────────────────────────────────
+   WIDE — LEFT PANEL (word queue)
+───────────────────────────────────────────── */
+#left-panel {
+  display: none;
+  flex-direction: column;
+  background: var(--cream);
+  border-right: 2px solid var(--warm);
+  overflow: hidden;
+  width: clamp(140px, 18vw, 210px);
+  flex-shrink: 0;
+}
+#game.wide #left-panel { display: flex; }
+
+.panel-hdr {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(0.5rem, 1.2vw, 0.68rem);
+  letter-spacing: 0.35em; text-transform: uppercase; color: #999;
+  padding: clamp(6px,1.2vh,10px) clamp(10px,1.8vw,16px) clamp(4px,.8vh,7px);
+  border-bottom: 1px solid var(--warm); flex-shrink: 0;
+}
+
+.bonus-badge {
+  margin: clamp(3px,.6vh,5px) clamp(5px,1vw,8px);
+  padding: clamp(4px,.8vh,7px) clamp(7px,1.2vw,10px);
+  border-radius: 2px; flex-shrink: 0;
+  background: rgba(42,107,62,.1); border: 1px solid rgba(42,107,62,.25);
+  font-size: clamp(0.42rem, 1vw, 0.54rem); letter-spacing: 0.15em;
+  text-transform: uppercase; color: var(--green);
+  display: flex; align-items: center; gap: 5px;
+}
+.bonus-badge.off { background: rgba(0,0,0,.04); border-color: var(--warm); color: #aaa; }
+.bdot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); animation: pg 1.5s infinite; }
+.bonus-badge.off .bdot { background: #ccc; animation: none; }
+
+.wq { flex: 1; overflow-y: auto; padding: clamp(4px,.8vh,7px); }
+.wq::-webkit-scrollbar { width: 3px; }
+.wq::-webkit-scrollbar-thumb { background: var(--warm); }
+
+.wcard {
+  border-radius: 2px; padding: clamp(6px,1.1vh,9px) clamp(7px,1.2vw,11px);
+  margin-bottom: clamp(3px,.6vh,5px);
+  display: flex; align-items: center; gap: clamp(5px,1vw,8px);
+  font-size: clamp(0.6rem, 1.5vw, 0.78rem);
+  letter-spacing: 0.1em; text-transform: uppercase; font-weight: 500;
+  border: 1.5px solid transparent; background: var(--paper); transition: all .3s;
+}
+.wcard.active {
+  background: var(--ink); color: var(--paper);
+  border-color: var(--ink);
+  box-shadow: clamp(2px,.5vw,4px) clamp(2px,.5vw,4px) 0 var(--red);
+  font-size: clamp(0.7rem, 1.8vw, 0.9rem);
+}
+.wcard.found {
+  background: transparent; color: #bbb;
+  text-decoration: line-through; text-decoration-color: #ccc;
+  font-size: clamp(0.52rem, 1.3vw, 0.66rem);
+}
+.wdot {
+  width: clamp(4px,.9vw,6px); height: clamp(4px,.9vw,6px);
+  border-radius: 50%; border: 1.5px solid currentColor; flex-shrink: 0;
+}
+.wcard.active .wdot { background: var(--red); border-color: var(--red); }
+.wcard.found .wdot  { background: #ccc; border-color: #ccc; }
+
+.qfoot {
+  padding: clamp(5px,1vh,8px) clamp(10px,1.8vw,16px);
+  font-size: clamp(0.36rem, 0.9vw, 0.48rem);
+  letter-spacing: 0.18em; text-transform: uppercase; color: #aaa;
+  border-top: 1px solid var(--warm); flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────────
+   WIDE — RIGHT PANEL (dictionary)
+───────────────────────────────────────────── */
+#right-panel {
+  display: none;
+  flex-direction: column;
+  background: var(--ink); color: var(--paper);
+  border-left: 2px solid #1a1a1a;
+  overflow: hidden;
+  width: clamp(160px, 22vw, 270px);
+  flex-shrink: 0;
+}
+#game.wide #right-panel { display: flex; }
+
+.rp-hdr {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(0.5rem, 1.2vw, 0.66rem);
+  letter-spacing: 0.35em; text-transform: uppercase; color: #444;
+  padding: clamp(6px,1.2vh,10px) clamp(10px,2vw,16px) clamp(4px,.8vh,7px);
+  border-bottom: 1px solid #1e1e1e; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 5px; flex-wrap: wrap;
+}
+.lang-pills { display: flex; gap: 3px; flex-wrap: wrap; }
+.lp {
+  font-size: clamp(0.34rem, 0.9vw, 0.44rem);
+  padding: 2px 5px; border-radius: 99px; border: 1px solid #333; color: #777;
+  transition: all .15s; text-transform: uppercase;
+}
+.lp.on { background: var(--red); border-color: var(--red); color: #fff; }
+
+.rp-body { flex: 1; overflow-y: auto; }
+.rp-body::-webkit-scrollbar { width: 3px; }
+.rp-body::-webkit-scrollbar-thumb { background: #2a2a2a; }
+
+.rp-hero { padding: clamp(12px,2.5vh,20px) clamp(10px,2vw,16px) clamp(10px,2vh,16px); border-bottom: 1px solid #1e1e1e; }
+.rp-tag {
+  font-size: clamp(0.38rem, 1vw, 0.5rem);
+  letter-spacing: 0.35em; text-transform: uppercase; color: var(--red); margin-bottom: clamp(3px,.6vh,6px);
+}
+.rp-word {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(1.4rem, 4vw + .5vh, 2.2rem);
+  letter-spacing: 0.25em; color: var(--paper); line-height: 1; margin-bottom: 3px;
+}
+.rp-phon { font-size: clamp(0.46rem, 1.2vw, 0.6rem); color: #555; margin-bottom: clamp(4px,.8vh,7px); }
+.rp-pos {
+  font-family: 'Instrument Serif', serif; font-style: italic;
+  font-size: clamp(0.58rem, 1.5vw, 0.76rem); color: #777; margin-bottom: clamp(6px,1.2vh,10px);
+}
+.rp-def { font-size: clamp(0.6rem, 1.5vw, 0.76rem); line-height: 1.7; color: #ccc; }
+.rp-ex {
+  margin-top: clamp(5px,1vh,8px);
+  font-family: 'Instrument Serif', serif; font-style: italic;
+  font-size: clamp(0.56rem, 1.4vw, 0.7rem); color: #555;
+  border-left: 2px solid #2a2a2a; padding-left: clamp(7px,1.5vw,10px); line-height: 1.5;
+}
+
+.rp-trans { padding: clamp(8px,1.5vh,12px) clamp(10px,2vw,16px); border-bottom: 1px solid #1a1a1a; }
+.rp-trans-lbl { font-size: clamp(0.34rem, .9vw, .44rem); letter-spacing: .25em; text-transform: uppercase; color: #444; margin-bottom: clamp(6px,1.2vh,10px); }
+.rp-te { margin-bottom: clamp(6px,1.2vh,10px); padding-bottom: clamp(6px,1.2vh,10px); border-bottom: 1px dotted #1e1e1e; }
+.rp-te:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.rp-te-lang { font-size: clamp(.38rem,.9vw,.5rem); letter-spacing:.18em; text-transform:uppercase; color:#666; margin-bottom:2px; }
+.rp-te-txt  { font-size: clamp(.6rem,1.5vw,.76rem); color:#bbb; line-height:1.5; }
+
+.rp-found { padding: clamp(8px,1.5vh,12px) clamp(10px,2vw,16px); }
+.rp-found-lbl { font-size: clamp(.34rem,.9vw,.44rem); letter-spacing:.25em; text-transform:uppercase; color:#333; margin-bottom:clamp(5px,1vh,8px); }
+.rp-fe { display:flex; justify-content:space-between; align-items:baseline; padding: clamp(2px,.4vh,4px) 0; border-bottom:1px dotted #1a1a1a; }
+.rp-fe:last-child { border-bottom:none; }
+.rp-fw { font-family:'Bebas Neue',sans-serif; font-size:clamp(.66rem,1.7vw,.84rem); letter-spacing:.18em; color:#555; }
+.rp-fp { font-size:clamp(.34rem,.9vw,.44rem); letter-spacing:.18em; color:#3a3a3a; }
+
+/* trans loading */
+.tload { font-size:clamp(.44rem,1.1vw,.58rem); color:#444; display:flex; align-items:center; gap:5px; }
+.dspin { display:inline-flex; gap:3px; }
+.dspin span { width:4px;height:4px;border-radius:50%;background:currentColor;animation:ds 1s infinite; }
+.dspin span:nth-child(2){animation-delay:.2s}.dspin span:nth-child(3){animation-delay:.4s}
+@keyframes ds{0%,100%{opacity:.2}50%{opacity:1}}
+
+/* ─────────────────────────────────────────────
+   OVERLAYS & MODALS
+───────────────────────────────────────────── */
+.overlay {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(13,13,13,.93);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity .3s;
+}
+.overlay.on { opacity: 1; pointer-events: all; }
+
+.modal {
+  background: var(--paper); color: var(--ink);
+  border: 2px solid var(--ink);
+  padding: clamp(20px,4vh,36px) clamp(18px,4vw,36px);
+  width: min(94vw, 500px);
+  max-height: min(88dvh, 680px);
+  overflow-y: auto;
+  box-shadow: clamp(5px,1.5vw,10px) clamp(5px,1.5vw,10px) 0 var(--ink);
+  transform: translateY(18px); transition: transform .3s; border-radius: 2px;
+}
+.modal::-webkit-scrollbar { width: 3px; }
+.modal::-webkit-scrollbar-thumb { background: var(--warm); }
+.overlay.on .modal { transform: translateY(0); }
+
+.m-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(1.6rem, 5vw + .5vh, 2.4rem);
+  letter-spacing: .25em; line-height: 1; margin-bottom: clamp(4px,.8vh,7px);
+}
+.m-title.red { color: var(--red); }
+.m-sub { font-size: clamp(.6rem,1.6vw,.76rem); color: #999; line-height: 1.6; margin-bottom: clamp(14px,3vh,22px); }
+
+.m-stats { display:flex; gap:clamp(14px,3.5vw,24px); margin-bottom:clamp(16px,3.5vh,26px); padding-bottom:clamp(12px,2.5vh,18px); border-bottom:1px solid var(--warm); flex-wrap:wrap; }
+.mstat { display:flex; flex-direction:column; gap:3px; }
+.mv { font-family:'Bebas Neue',sans-serif; font-size:clamp(1.5rem,4.5vw+.5vh,2.2rem); letter-spacing:.18em; line-height:1; }
+.mv.red { color:var(--red); }
+.ml { font-size:clamp(.34rem,.9vw,.46rem); letter-spacing:.22em; text-transform:uppercase; color:#bbb; }
+
+.mbtn {
+  font-family: 'Bebas Neue', sans-serif; letter-spacing: .2em;
+  font-size: clamp(.68rem,2vw,.88rem);
+  padding: clamp(10px,2.2vh,15px) 0; width: 100%;
+  cursor: pointer; border-radius: 2px; border: none;
+  margin-bottom: clamp(5px,1vh,8px); transition: all .15s;
+}
+.mbtn.dark { background: var(--ink); color: var(--paper); }
+.mbtn.dark:active { background: #1a1a1a; }
+.mbtn.lite { background: transparent; border: 1.5px solid var(--warm); color: #999; }
+.mbtn.lite:active { border-color: var(--ink); color: var(--ink); }
+
+/* settings form */
+.ssec { margin-bottom:clamp(14px,3vh,20px); padding-bottom:clamp(14px,3vh,20px); border-bottom:1px solid var(--warm); }
+.ssec:last-of-type { border-bottom:none; margin-bottom:0; }
+.slbl { font-size:clamp(.44rem,1.2vw,.58rem); letter-spacing:.25em; text-transform:uppercase; color:#aaa; margin-bottom:clamp(6px,1.2vh,10px); display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+.badge { padding:2px 7px; border-radius:99px; font-size:clamp(.34rem,.9vw,.44rem); letter-spacing:.18em; color:#fff; }
+.badge.r{background:var(--red)}.badge.g{background:var(--green)}.badge.b{background:var(--blue)}
+.srow { display:flex; gap:clamp(4px,.8vw,7px); flex-wrap:wrap; margin-bottom:clamp(5px,1vh,8px); }
+.sbtn {
+  flex:1; min-width:clamp(36px,8vw,54px);
+  padding:clamp(8px,1.8vh,12px) clamp(4px,.8vw,7px);
+  font-family:'Bebas Neue',sans-serif; letter-spacing:.15em;
+  font-size:clamp(.6rem,1.6vw,.78rem);
+  background:var(--cream); border:1.5px solid var(--warm); color:#888;
+  border-radius:2px; cursor:pointer; transition:all .15s;
+}
+.sbtn:active { transform:scale(.95); }
+.sbtn.on { background:var(--ink); color:var(--paper); border-color:var(--ink); }
+.sinp {
+  width:100%; padding:clamp(9px,2vh,13px) clamp(10px,2vw,14px);
+  font-family:'DM Mono',monospace; font-size:clamp(.7rem,2vw,.9rem);
+  background:var(--cream); border:1.5px solid var(--warm); border-radius:2px;
+  color:var(--ink); outline:none; transition:border-color .15s; margin-bottom:5px;
+}
+.sinp:focus { border-color:var(--ink); }
+.sinp::placeholder { color:#bbb; }
+.snote { font-size:clamp(.38rem,1vw,.5rem); color:#bbb; }
+.strow { display:flex; align-items:center; justify-content:space-between; padding:clamp(6px,1.2vh,10px) 0; gap:12px; }
+.stinfo { flex:1; }
+.stlbl { font-size:clamp(.6rem,1.7vw,.76rem); color:var(--ink); }
+.stsub { font-size:clamp(.5rem,1.4vw,.64rem); color:#aaa; margin-top:2px; }
+.toggle {
+  width:clamp(34px,7vw,42px); height:clamp(18px,3.8vw,22px);
+  background:var(--warm); border-radius:99px; cursor:pointer;
+  position:relative; transition:background .2s; border:none; flex-shrink:0;
+}
+.toggle.on { background:var(--green); }
+.toggle::after {
+  content:''; position:absolute;
+  width:calc(clamp(34px,7vw,42px) * 0.42);
+  height:calc(clamp(18px,3.8vw,22px) - 6px);
+  background:#fff; border-radius:50%; top:3px; left:3px; transition:left .2s;
+}
+.toggle.on::after { left:calc(clamp(34px,7vw,42px) - clamp(34px,7vw,42px)*0.42 - 3px); }
+.ssub { background:var(--cream); border:1px solid var(--warm); border-radius:2px; padding:clamp(9px,1.8vh,13px); margin-top:clamp(6px,1.2vh,10px); display:none; }
+.ssub.vis { display:block; }
+.ssublbl { font-size:clamp(.38rem,.9vw,.48rem); letter-spacing:.18em; text-transform:uppercase; color:#aaa; margin-bottom:clamp(5px,1vh,8px); }
+.lgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:clamp(4px,.8vw,7px); }
+@media(min-width:380px){.lgrid{grid-template-columns:repeat(4,1fr)}}
+@media(min-width:480px){.lgrid{grid-template-columns:repeat(5,1fr)}}
+.lopt {
+  padding:clamp(6px,1.3vh,10px) clamp(3px,.6vw,6px); text-align:center;
+  font-family:'DM Mono',monospace; font-size:clamp(.46rem,1.2vw,.6rem);
+  background:var(--paper); border:1.5px solid var(--warm); border-radius:2px;
+  cursor:pointer; transition:all .15s; line-height:1.3;
+}
+.lopt:active{transform:scale(.93)}
+.lopt.sel{background:var(--blue);border-color:var(--blue);color:#fff}
+.lopt .flag{font-size:clamp(.85rem,2.5vw,1.1rem);display:block;margin-bottom:2px}
+.lopt .lname{display:block;text-transform:uppercase}
+
+/* ─────────────────────────────────────────────
+   TOASTS
+───────────────────────────────────────────── */
+#toast {
+  position:fixed; bottom:clamp(14px,3vh,22px); left:50%;
+  transform:translateX(-50%) translateY(60px);
+  background:var(--ink); color:var(--paper);
+  font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(.68rem,2.2vw,.9rem); letter-spacing:.25em;
+  padding:clamp(7px,1.5vh,11px) clamp(16px,4vw,24px);
+  border-radius:2px; border-bottom:clamp(2px,.5vw,3px) solid var(--red);
+  z-index:400; transition:transform .3s cubic-bezier(.17,.67,.3,1.4),opacity .3s;
+  opacity:0; pointer-events:none; white-space:nowrap; max-width:92vw; text-align:center;
+}
+#toast.on{transform:translateX(-50%) translateY(0);opacity:1}
+#toast.g{border-bottom-color:var(--green)}
+
+#btost {
+  position:fixed; bottom:clamp(52px,10vh,76px); left:50%;
+  transform:translateX(-50%) translateY(60px);
+  background:var(--green); color:#fff;
+  font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(.6rem,2vw,.82rem); letter-spacing:.22em;
+  padding:clamp(6px,1.3vh,10px) clamp(14px,3.5vw,20px);
+  border-radius:2px; z-index:400;
+  transition:transform .3s cubic-bezier(.17,.67,.3,1.4),opacity .3s;
+  opacity:0; pointer-events:none; white-space:nowrap; max-width:92vw; text-align:center;
+}
+#btost.on{transform:translateX(-50%) translateY(0);opacity:1}
+
+/* ─────────────────────────────────────────────
+   REVEAL ANIM
+───────────────────────────────────────────── */
+@keyframes reveal { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+.rev { animation:reveal .35s ease forwards; }
+
+/* ─────────────────────────────────────────────
+   RESPONSIVE BREAKPOINTS
+   Only show tagline on wide, adjust minor sizing
+───────────────────────────────────────────── */
+@media (min-width: 520px) { .tagline { display: block; } }
+@media (min-width: 640px) { :root { --gap: 3px; } }
+</style>
+</head>
+<body>
+<div id="shell">
+
+  <!-- ══ TOP BAR ══ -->
+  <header id="topbar">
+    <div class="tb-left">
+      <div class="logo">LEXIS</div>
+      <div class="tagline">Infinite<br>Word Hunt</div>
+    </div>
+    <div class="tb-mid">
+      <div id="timer">2:00</div>
+      <div id="timer-sub">remaining</div>
+    </div>
+    <div class="tb-right">
+      <div class="chips">
+        <div class="chip"><span class="chip-v gold" id="sv">0</span><span class="chip-l">score</span></div>
+        <div class="chip"><span class="chip-v" id="fv">0</span><span class="chip-l">found</span></div>
+        <div class="chip"><span class="chip-v" id="stv">0</span><span class="chip-l">streak</span></div>
+      </div>
+      <button class="ibtn" onclick="openCfg()">⚙</button>
+      <button class="ibtn red" onclick="restartGame()">↺</button>
+    </div>
+  </header>
+
+  <!-- ══ GAME AREA ══ -->
+  <div id="game">
+
+    <!-- NARROW: word strip (above grid) -->
+    <div id="word-strip">
+      <div class="ws-top">
+        <span class="ws-tag">▸ Find This Word</span>
+        <div class="ws-bonus off" id="ws-bonus">
+          <div class="wsbdot"></div>
+          <span id="ws-bonus-txt">bonus off</span>
+        </div>
+      </div>
+      <div class="ws-word" id="ws-word">—</div>
+      <div class="ws-pos"  id="ws-pos"></div>
+      <div class="ws-chips" id="ws-chips"></div>
+      <div class="ws-prog">
+        <div class="ws-rail"><div class="ws-fill" id="ws-fill"></div></div>
+        <div class="ws-ptxt" id="ws-ptxt">0 / 0 found</div>
+      </div>
+    </div>
+
+    <!-- WIDE: left panel -->
+    <div id="left-panel">
+      <div class="panel-hdr">— Word Queue —</div>
+      <div class="bonus-badge off" id="lp-bonus">
+        <div class="bdot"></div>
+        <span id="lp-bonus-txt">bonus off</span>
+      </div>
+      <div class="wq" id="wq"></div>
+      <div class="qfoot" id="qfoot">Loading…</div>
+    </div>
+
+    <!-- GRID SECTION (always visible) -->
+    <div id="grid-section">
+      <div id="bonus-ring">
+        <div class="br-num" id="br-num">5</div>
+        <div class="br-lbl">bonus</div>
+      </div>
+      <div class="grid-wrap">
+        <canvas id="lcanvas"></canvas>
+        <div id="grid"></div>
+      </div>
+      <div class="prog-wrap" id="pw">
+        <div class="prog-rail"><div class="prog-fill" id="pf"></div></div>
+        <div class="prog-txt" id="pt">0 / 0 found</div>
+      </div>
+      <div class="hint" id="hint">tap &amp; drag to select a word</div>
+    </div>
+
+    <!-- NARROW: meaning card (below grid) -->
+    <div id="meaning-card">
+      <div class="mc-inner" id="mc-inner">
+        <div class="mc-tag">▸ word meaning</div>
+        <div class="mc-word" style="color:#333">Loading…</div>
+      </div>
+    </div>
+
+    <!-- WIDE: right panel -->
+    <div id="right-panel">
+      <div class="rp-hdr">
+        <span>— Dictionary —</span>
+        <div class="lang-pills" id="rp-langs"></div>
+      </div>
+      <div class="rp-body">
+        <div id="rp-hero"></div>
+        <div class="rp-trans" id="rp-trans" style="display:none">
+          <div class="rp-trans-lbl">Translations</div>
+          <div id="rp-trans-content"></div>
+        </div>
+        <div class="rp-found" id="rp-found" style="display:none">
+          <div class="rp-found-lbl">Previously Found</div>
+          <div id="rp-found-list"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /game -->
+</div><!-- /shell -->
+
+<!-- TOASTS -->
+<div id="toast"></div>
+<div id="btost"></div>
+
+<!-- WIN -->
+<div class="overlay" id="win-ov">
+  <div class="modal">
+    <div class="m-title">VICTORY</div>
+    <p class="m-sub">Every word hunted down. Lexical mastery achieved.</p>
+    <div class="m-stats">
+      <div class="mstat"><span class="mv red" id="wf">0</span><span class="ml">Found</span></div>
+      <div class="mstat"><span class="mv" id="wt">0</span><span class="ml">Time Left</span></div>
+      <div class="mstat"><span class="mv" id="ws2">0</span><span class="ml">Score</span></div>
+      <div class="mstat"><span class="mv" id="wr">0</span><span class="ml">Resets</span></div>
+    </div>
+    <button class="mbtn dark" onclick="restartGame()">PLAY AGAIN →</button>
+  </div>
+</div>
+
+<!-- LOSE -->
+<div class="overlay" id="lose-ov">
+  <div class="modal">
+    <div class="m-title red">TIME'S UP</div>
+    <p class="m-sub">The clock ran out. Train harder and come back.</p>
+    <div class="m-stats">
+      <div class="mstat"><span class="mv" id="lf">0</span><span class="ml">Found</span></div>
+      <div class="mstat"><span class="mv red" id="lm">0</span><span class="ml">Missed</span></div>
+      <div class="mstat"><span class="mv" id="ls">0</span><span class="ml">Score</span></div>
+    </div>
+    <button class="mbtn dark" onclick="restartGame()">TRY AGAIN →</button>
+    <button class="mbtn lite" onclick="openCfg()">CHANGE CONFIG</button>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="overlay" id="cfg-ov">
+  <div class="modal">
+    <div class="m-title" style="margin-bottom:4px">CONFIG</div>
+    <p class="m-sub">Customize your hunt experience.</p>
+    <div class="ssec">
+      <div class="slbl">⏱ Time Limit</div>
+      <div class="srow" id="trow">
+        <button class="sbtn" data-t="60">1 MIN</button>
+        <button class="sbtn on" data-t="120">2 MIN</button>
+        <button class="sbtn" data-t="180">3 MIN</button>
+        <button class="sbtn" data-t="300">5 MIN</button>
+        <button class="sbtn" data-t="600">10 MIN</button>
+      </div>
+      <input class="sinp" id="ct" type="number" inputmode="numeric" placeholder="Custom seconds (e.g. 90)" min="10" max="7200">
+    </div>
+    <div class="ssec">
+      <div class="slbl">📝 Words to Find <span class="badge r">Custom</span></div>
+      <div class="srow" id="wrow">
+        <button class="sbtn" data-w="5">5</button>
+        <button class="sbtn" data-w="10">10</button>
+        <button class="sbtn on" data-w="15">15</button>
+        <button class="sbtn" data-w="20">20</button>
+        <button class="sbtn" data-w="30">30</button>
+        <button class="sbtn" data-w="0">∞</button>
+      </div>
+      <input class="sinp" id="cw" type="number" inputmode="numeric" placeholder="Any number (e.g. 42)" min="1" max="999">
+      <div class="snote">∞ = play until time runs out</div>
+    </div>
+    <div class="ssec">
+      <div class="slbl">⚡ Time Reset Bonus <span class="badge g">New</span></div>
+      <div class="strow">
+        <div class="stinfo">
+          <div class="stlbl">Enable Time Reset</div>
+          <div class="stsub">Find a word under threshold → clock resets</div>
+        </div>
+        <button class="toggle" id="btoggle" onclick="toggleBonus()"></button>
+      </div>
+      <div class="ssub" id="bsub">
+        <div class="ssublbl">Seconds to beat:</div>
+        <div class="srow">
+          <button class="sbtn" data-b="3">3s</button>
+          <button class="sbtn on" data-b="5">5s</button>
+          <button class="sbtn" data-b="8">8s</button>
+          <button class="sbtn" data-b="10">10s</button>
+          <button class="sbtn" data-b="15">15s</button>
+        </div>
+        <input class="sinp" id="cb" type="number" inputmode="numeric" placeholder="Custom threshold" min="1" max="120">
+      </div>
+    </div>
+    <div class="ssec">
+      <div class="slbl">🌐 Translation Languages <span class="badge b">Multi</span></div>
+      <div style="font-size:clamp(.42rem,1.1vw,.54rem);color:#bbb;margin-bottom:9px">Select any — powered by free MyMemory API</div>
+      <div class="lgrid" id="lgrid"></div>
+    </div>
+    <button class="mbtn dark" onclick="applySettings()">APPLY & START →</button>
+    <button class="mbtn lite" onclick="closeOvs()">CANCEL</button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+//  CONSTANTS
+// ══════════════════════════════════════════
+const SEEDS = [
+  "brave","crisp","flame","grace","harsh","ideal","jolly","knack","maple","noble",
+  "orbit","prism","quest","radar","siren","thorn","vivid","waltz","xenon","yacht",
+  "abode","bliss","chord","drift","ember","frond","gleam","haste","infer","judge",
+  "karma","lunar","mirth","nexus","optic","plumb","quirk","ridge","scout","tepid",
+  "umbra","vapor","wrath","yield","bloom","crane","depot","evoke","forge","graze",
+  "hazel","irony","joust","ledge","manor","novel","onset","pivot","quart","realm",
+  "sheen","trout","unity","valve","whirl","exact","acorn","brisk","cloak","dwarf",
+  "envoy","flint","guile","heron","inlet","jumbo","kneel","lance","mercy","nerve",
+  "otter","plume","quota","raven","scorn","tidal","usher","vouch","wheat","expel",
+  "yearn","azure","brace","cairn","delta","epoch","frown","groan","humid","joker",
+  "knave","lyric","midst","nadir","ounce","psalm","rivet","swamp","totem","ultra",
+  "vigor","wreck","album","blunt","craft","dense","elbow","fluke","gloom","hatch",
+  "ivory","jewel","kudos","latch","maxim","notch","oxide","plank","query","risky",
+  "stern","talon","unify","verse","windy","agile","baron","comet","enact","frail",
+  "glove","hinge","jaunt","knelt","lithe","mourn","oaken","perch","quaff","repel",
+  "sulky","twine","adept","brawn","easel","gauze","hippo","index","laden","mocha",
+  "naive","octet","plaid","quasi","rebus","spire","tacit","undue","wordy","zesty",
+  "amble","beige","civic","delve","ethos","fjord","heist","ionic","jaded","kapok",
+  "liege","moxie","nomad","opine","proxy","rogue","stoic","tawny","trove","scald",
+];
+
+const LANGS = [
+  {code:'hi',name:'Hindi',flag:'🇮🇳'},{code:'es',name:'Spanish',flag:'🇪🇸'},
+  {code:'fr',name:'French',flag:'🇫🇷'},{code:'de',name:'German',flag:'🇩🇪'},
+  {code:'zh',name:'Chinese',flag:'🇨🇳'},{code:'ar',name:'Arabic',flag:'🇸🇦'},
+  {code:'pt',name:'Portuguese',flag:'🇧🇷'},{code:'ru',name:'Russian',flag:'🇷🇺'},
+  {code:'ja',name:'Japanese',flag:'🇯🇵'},{code:'ko',name:'Korean',flag:'🇰🇷'},
+  {code:'it',name:'Italian',flag:'🇮🇹'},{code:'tr',name:'Turkish',flag:'🇹🇷'},
+  {code:'bn',name:'Bengali',flag:'🇧🇩'},{code:'ur',name:'Urdu',flag:'🇵🇰'},
+  {code:'nl',name:'Dutch',flag:'🇳🇱'},{code:'pl',name:'Polish',flag:'🇵🇱'},
+  {code:'sv',name:'Swedish',flag:'🇸🇪'},{code:'ta',name:'Tamil',flag:'🇮🇳'},
+];
+
+const GS = 10; // grid size
+const DIRS = [[0,1],[1,0],[1,1],[1,-1],[0,-1],[-1,0],[-1,-1],[-1,1]];
+const LCOLORS = [
+  'rgba(200,65,10,.48)','rgba(42,107,62,.48)','rgba(26,58,122,.48)',
+  'rgba(184,134,11,.48)','rgba(120,40,120,.48)','rgba(0,120,140,.48)',
+  'rgba(160,80,20,.48)','rgba(80,120,40,.48)',
+];
+
+// ══════════════════════════════════════════
+//  CONFIG & STATE
+// ══════════════════════════════════════════
+let cfg = {time:120, words:15, bonus:false, bThresh:5, langs:[]};
+let wordQ=[], cur=null, done=[], pending=new Set();
+let gdata=[], lines=[], fcells=new Set();
+let down=false, s0=null, sel=[];
+let score=0, streak=0, tLeft=0, tid=null, bid=null, alive=false;
+let bsec=0, resets=0;
+let seedArr=[], si=0;
+
+// ══════════════════════════════════════════
+//  LAYOUT SWITCHING
+//  Adds/removes class on #game based on width
+// ══════════════════════════════════════════
+const BREAK = 640;
+function applyLayout() {
+  const g = document.getElementById('game');
+  g.classList.toggle('narrow', window.innerWidth < BREAK);
+  g.classList.toggle('wide',   window.innerWidth >= BREAK);
+  // recompute cell size whenever layout changes
+  if (alive || cur) recalcCells();
+}
+window.addEventListener('resize', () => { applyLayout(); if (cur) recalcCells(); });
+
+// ── compute & set --cell from available space ──
+function recalcCells() {
+  const gs = document.getElementById('grid-section');
+  if (!gs) return;
+  const rect = gs.getBoundingClientRect();
+  // leave padding on all sides
+  const pad = 24;
+  const avW = rect.width  - pad * 2;
+  const avH = rect.height - pad * 2 - 40; // 40 = progress+hint height
+  const maxByW = Math.floor((avW - (GS-1)*2) / GS);
+  const maxByH = Math.floor((avH - (GS-1)*2) / GS);
+  const cell = Math.max(22, Math.min(maxByW, maxByH, 46));
+  document.documentElement.style.setProperty('--cell', cell + 'px');
+  // re-render grids if we have one
+  if (cur) renderGridDOM();
+}
+
+// ══════════════════════════════════════════
+//  SETTINGS UI
+// ══════════════════════════════════════════
+function buildLangGrid() {
+  const el = document.getElementById('lgrid'); el.innerHTML = '';
+  LANGS.forEach(l => {
+    const d = document.createElement('div');
+    d.className = 'lopt' + (cfg.langs.includes(l.code) ? ' sel' : '');
+    d.dataset.code = l.code;
+    d.innerHTML = `<span class="flag">${l.flag}</span><span class="lname">${l.name}</span>`;
+    d.onclick = () => d.classList.toggle('sel');
+    el.appendChild(d);
+  });
+}
+
+document.querySelectorAll('[data-t]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-t]').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); document.getElementById('ct').value = '';
+}));
+document.querySelectorAll('[data-w]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-w]').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); document.getElementById('cw').value = '';
+}));
+document.querySelectorAll('[data-b]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-b]').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); document.getElementById('cb').value = '';
+}));
+
+function toggleBonus() {
+  const t = document.getElementById('btoggle');
+  t.classList.toggle('on');
+  document.getElementById('bsub').classList.toggle('vis', t.classList.contains('on'));
+}
+function syncCfgUI() {
+  document.querySelectorAll('[data-t]').forEach(b => b.classList.toggle('on', +b.dataset.t === cfg.time));
+  document.querySelectorAll('[data-w]').forEach(b => b.classList.toggle('on', +b.dataset.w === cfg.words));
+  document.querySelectorAll('[data-b]').forEach(b => b.classList.toggle('on', +b.dataset.b === cfg.bThresh));
+  ['ct','cw','cb'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('btoggle').classList.toggle('on', cfg.bonus);
+  document.getElementById('bsub').classList.toggle('vis', cfg.bonus);
+  buildLangGrid();
+}
+function applySettings() {
+  const ct=parseInt(document.getElementById('ct').value);
+  const cw=parseInt(document.getElementById('cw').value);
+  const cb=parseInt(document.getElementById('cb').value);
+  cfg.time   = ct>=10 ? ct : +(document.querySelector('[data-t].on')?.dataset.t || 120);
+  cfg.words  = cw>=1  ? cw : +(document.querySelector('[data-w].on')?.dataset.w ?? 15);
+  cfg.bonus  = document.getElementById('btoggle').classList.contains('on');
+  cfg.bThresh= cb>=1  ? cb : +(document.querySelector('[data-b].on')?.dataset.b || 5);
+  cfg.langs  = [...document.querySelectorAll('.lopt.sel')].map(d => d.dataset.code);
+  closeOvs(); startGame();
+}
+function openCfg()  { syncCfgUI(); document.getElementById('cfg-ov').classList.add('on'); }
+function closeOvs() { document.querySelectorAll('.overlay').forEach(o => o.classList.remove('on')); }
+
+// ══════════════════════════════════════════
+//  BOOT
+// ══════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  syncCfgUI(); buildLangGrid(); applyLayout(); startGame();
+});
+
+// ══════════════════════════════════════════
+//  GAME LOGIC
+// ══════════════════════════════════════════
+async function startGame() {
+  clearInterval(tid); clearInterval(bid);
+  wordQ=[]; cur=null; done=[]; pending.clear();
+  gdata=[]; lines=[]; fcells.clear();
+  down=false; sel=[];
+  score=0; streak=0; resets=0; bsec=0;
+  alive=true; tLeft=cfg.time;
+  seedArr=[...SEEDS].sort(()=>Math.random()-.5); si=0;
+  closeOvs(); applyLayout();
+
+  // reset UI
+  document.getElementById('ws-chips').innerHTML = '';
+  document.getElementById('ws-word').textContent = '—';
+  document.getElementById('ws-pos').textContent  = '';
+  document.getElementById('wq').innerHTML = '';
+  document.getElementById('qfoot').textContent = 'Loading…';
+  document.getElementById('rp-hero').innerHTML = '';
+  document.getElementById('rp-trans-content').innerHTML = '';
+  document.getElementById('rp-found-list').innerHTML = '';
+  document.getElementById('rp-trans').style.display = 'none';
+  document.getElementById('rp-found').style.display = 'none';
+  document.getElementById('rp-langs').innerHTML = '';
+  document.getElementById('mc-inner').innerHTML = '<div class="mc-tag">▸ word meaning</div><div class="mc-word" style="color:#333">Loading…</div>';
+
+  updHdr(); updBonusUI();
+  await prefetch(6);
+  await advance();
+  updTimer();
+  tid = setInterval(tick, 1000);
+  keepFull();
+}
+
+async function prefetch(n) {
+  const p = []; for (let i=0;i<n;i++){const w=nxtSeed();if(w)p.push(fw(w));} await Promise.allSettled(p);
+}
+function nxtSeed() {
+  if (si >= seedArr.length) { seedArr=[...SEEDS].sort(()=>Math.random()-.5); si=0; }
+  return seedArr[si++];
+}
+async function fw(raw) {
+  const word = raw.toUpperCase();
+  if (pending.has(word)||wordQ.find(w=>w.word===word)||done.find(w=>w.word===word)||(cur?.word===word)||word.length<4||word.length>GS) return;
+  pending.add(word);
+  try {
+    const r = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${raw.toLowerCase()}`);
+    if (!r.ok) throw 0;
+    const d=await r.json(), e=d[0], m=e.meanings?.[0], df=m?.definitions?.[0];
+    wordQ.push({word, pos:m?.partOfSpeech||'word', def:df?.definition||'No definition.', example:df?.example||null, phonetic:e.phonetic||e.phonetics?.find(p=>p.text)?.text||null});
+  } catch {} finally { pending.delete(word); }
+}
+async function keepFull() {
+  while (alive) { if (wordQ.length<5){const w=nxtSeed();if(w)await fw(w);} await sleep(300); }
+}
+
+async function advance() {
+  let a=0; while(wordQ.length===0&&a<25){const w=nxtSeed();if(w)await fw(w);if(!wordQ.length)await sleep(400);a++;}
+  cur = wordQ.length ? wordQ.shift() : {word:'QUEST',pos:'noun',def:'A long search for something.',phonetic:null,example:null};
+  bsec=0; clearInterval(bid);
+  if (cfg.bonus && alive) bid = setInterval(()=>{bsec++;updBonusRing();},1000);
+  buildGridData();
+  renderGridDOM();
+  updQueueUI();
+  updDictWide(cur);
+  updWordStrip(cur);
+  updMeaningCard(cur);
+  doTranslations(cur);
+  updQfoot();
+}
+
+// ══════════════════════════════════════════
+//  GRID DATA
+// ══════════════════════════════════════════
+function buildGridData() {
+  gdata = Array.from({length:GS},()=>Array(GS).fill(''));
+  lines=[]; fcells.clear();
+  placeWord(cur.word);
+  const A='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  for(let r=0;r<GS;r++) for(let c=0;c<GS;c++) if(!gdata[r][c]) gdata[r][c]=A[Math.floor(Math.random()*26)];
+}
+function placeWord(w) {
+  for(let t=0;t<300;t++){
+    const[dr,dc]=DIRS[Math.floor(Math.random()*DIRS.length)];
+    const r=Math.floor(Math.random()*GS),c=Math.floor(Math.random()*GS);
+    const er=r+dr*(w.length-1),ec=c+dc*(w.length-1);
+    if(er<0||er>=GS||ec<0||ec>=GS) continue;
+    let ok=true;
+    for(let j=0;j<w.length;j++){const g=gdata[r+dr*j][c+dc*j];if(g&&g!==w[j]){ok=false;break;}}
+    if(!ok) continue;
+    for(let j=0;j<w.length;j++) gdata[r+dr*j][c+dc*j]=w[j];
+    return;
+  }
+}
+
+// ══════════════════════════════════════════
+//  GRID DOM  — called after layout or data change
+// ══════════════════════════════════════════
+function renderGridDOM() {
+  const gridEl = document.getElementById('grid');
+  const cellPx = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 32;
+  const gapPx  = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--gap'))  || 2;
+
+  gridEl.style.gridTemplateColumns = `repeat(${GS},${cellPx}px)`;
+  gridEl.innerHTML = '';
+
+  for (let r=0;r<GS;r++) for (let c=0;c<GS;c++) {
+    const el = document.createElement('div');
+    el.className = 'cell'; el.textContent = gdata[r][c];
+    el.dataset.r = r; el.dataset.c = c;
+    if (fcells.has(`${r},${c}`)) el.classList.add('done');
+    gridEl.appendChild(el);
+  }
+
+  // events on container (one handler, not per-cell)
+  gridEl.onmousedown  = e => { if(e.target.classList.contains('cell')) onDown(e.target); };
+  gridEl.onmouseover  = e => { if(e.target.classList.contains('cell')) onMove(e.target); };
+  gridEl.ontouchstart = e => { e.preventDefault(); const el=elAt(e.touches[0]); if(el)onDown(el); };
+  gridEl.ontouchmove  = e => { e.preventDefault(); const el=elAt(e.touches[0]); if(el)onMove(el); };
+  gridEl.ontouchend   = e => { e.preventDefault(); onUp(); };
+
+  // canvas
+  const canvas = document.getElementById('lcanvas');
+  const tot = GS*cellPx + (GS-1)*gapPx;
+  canvas.width = tot; canvas.height = tot;
+  drawLines();
+}
+
+document.addEventListener('mouseup', onUp);
+
+// ══════════════════════════════════════════
+//  INTERACTION
+// ══════════════════════════════════════════
+const elAt = t => document.elementFromPoint(t.clientX, t.clientY);
+const cellOf = el => ({r:+el.dataset.r, c:+el.dataset.c});
+
+function lineFrom(a,b){
+  const dr=b.r-a.r,dc=b.c-a.c,len=Math.max(Math.abs(dr),Math.abs(dc));
+  if(!len)return[a];
+  if(Math.abs(dr)&&Math.abs(dc)&&Math.abs(dr)!==Math.abs(dc))return null;
+  const sr=dr?dr/Math.abs(dr):0,sc=dc?dc/Math.abs(dc):0;
+  return Array.from({length:len+1},(_,i)=>({r:a.r+sr*i,c:a.c+sc*i}));
+}
+
+function onDown(el){if(!alive)return;down=true;s0=cellOf(el);sel=[s0];paintSel();}
+function onMove(el){if(!down||!alive)return;const ln=lineFrom(s0,cellOf(el));if(ln){sel=ln;paintSel();}}
+function onUp(){if(!down)return;down=false;checkSel();sel=[];paintSel();}
+
+function paintSel(){
+  document.querySelectorAll('#grid .cell').forEach(el=>{
+    const r=+el.dataset.r,c=+el.dataset.c;
+    el.classList.toggle('sel', sel.some(s=>s.r===r&&s.c===c));
+    el.classList.toggle('done', fcells.has(`${r},${c}`));
+  });
+}
+
+async function checkSel(){
+  if(!cur||!sel.length)return;
+  const w=sel.map(({r,c})=>gdata[r][c]).join('');
+  const rv=w.split('').reverse().join('');
+  if(w!==cur.word&&rv!==cur.word){if(sel.length>2)showHint('Not a match');return;}
+  clearInterval(bid);
+  const took=bsec;
+  const pts=cur.word.length*10+Math.floor(tLeft/5)+streak*5;
+  score+=pts; streak++;
+
+  if(cfg.bonus&&took<cfg.bThresh){
+    tLeft=cfg.time; resets++;
+    const te=document.getElementById('timer');
+    te.classList.remove('warn','danger');
+    te.classList.add('bflash');
+    setTimeout(()=>te.classList.remove('bflash'),650);
+    showBToast(`⚡ RESET! Found in ${took}s`);
+  }
+
+  const color=LCOLORS[done.length%LCOLORS.length];
+  lines.push({cells:[...sel],color});
+  sel.forEach(({r,c})=>fcells.add(`${r},${c}`));
+  drawLines(); paintSel();
+
+  done.push(cur);
+  showToast(`✓ ${cur.word}  +${pts}pts`,'g');
+  addFoundEntry(cur,pts);
+  updHdr(); updProgress();
+
+  const inf=cfg.words===0;
+  if(!inf&&done.length>=cfg.words){await sleep(500);endGame(true);return;}
+  updQueueUI();
+  await sleep(350);
+  await advance();
+}
+
+// ══════════════════════════════════════════
+//  CANVAS LINES
+// ══════════════════════════════════════════
+function drawLines(){
+  const canvas=document.getElementById('lcanvas');
+  const ctx=canvas.getContext('2d');
+  const cellPx=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell'))||32;
+  const gapPx=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--gap'))||2;
+  const step=cellPx+gapPx,half=cellPx/2;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  lines.forEach(({cells,color})=>{
+    if(!cells.length)return;
+    ctx.strokeStyle=color;ctx.lineWidth=cellPx-6;ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.beginPath();ctx.moveTo(cells[0].c*step+half,cells[0].r*step+half);
+    cells.slice(1).forEach(({r,c})=>ctx.lineTo(c*step+half,r*step+half));
+    ctx.stroke();
+  });
+}
+
+// ══════════════════════════════════════════
+//  TIMER
+// ══════════════════════════════════════════
+function tick(){if(!alive)return;tLeft--;updTimer();if(tLeft<=0){tLeft=0;updTimer();endGame(false);}}
+function updTimer(){
+  const el=document.getElementById('timer'),m=Math.floor(tLeft/60),s=tLeft%60;
+  el.textContent=`${m}:${s.toString().padStart(2,'0')}`;
+  if(!el.classList.contains('bflash')){
+    el.classList.remove('warn','danger');
+    if(tLeft<=10)el.classList.add('danger');
+    else if(tLeft<=30)el.classList.add('warn');
+  }
+}
+
+// ══════════════════════════════════════════
+//  BONUS UI
+// ══════════════════════════════════════════
+function updBonusRing(){
+  const rem=cfg.bThresh-bsec;
+  const ring=document.getElementById('bonus-ring'),num=document.getElementById('br-num');
+  if(cfg.bonus&&alive&&rem>0){ring.classList.add('vis');num.textContent=rem;}
+  else ring.classList.remove('vis');
+}
+function updBonusUI(){
+  const on=cfg.bonus,lbl=on?`bonus: <${cfg.bThresh}s`:'bonus off';
+  const wsb=document.getElementById('ws-bonus'),wsbt=document.getElementById('ws-bonus-txt');
+  wsb.classList.toggle('off',!on);wsbt.textContent=lbl;
+  const lpb=document.getElementById('lp-bonus'),lpbt=document.getElementById('lp-bonus-txt');
+  lpb.classList.toggle('off',!on);lpbt.textContent=lbl;
+  document.getElementById('timer-sub').textContent=on?`reset <${cfg.bThresh}s`:'remaining';
+}
+
+// ══════════════════════════════════════════
+//  END GAME
+// ══════════════════════════════════════════
+function endGame(won){
+  alive=false;clearInterval(tid);clearInterval(bid);
+  document.getElementById('bonus-ring').classList.remove('vis');
+  if(won){
+    document.getElementById('wf').textContent=done.length;
+    document.getElementById('wt').textContent=tLeft+'s';
+    document.getElementById('ws2').textContent=score;
+    document.getElementById('wr').textContent=resets;
+    document.getElementById('win-ov').classList.add('on');
+  }else{
+    const missed=cfg.words===0?0:cfg.words-done.length;
+    document.getElementById('lf').textContent=done.length;
+    document.getElementById('lm').textContent=missed;
+    document.getElementById('ls').textContent=score;
+    document.getElementById('lose-ov').classList.add('on');
+  }
+}
+function restartGame(){closeOvs();startGame();}
+
+// ══════════════════════════════════════════
+//  UI RENDERS
+// ══════════════════════════════════════════
+function updWordStrip(w){
+  document.getElementById('ws-word').textContent=w.word;
+  document.getElementById('ws-pos').textContent=w.pos;
+}
+function updMeaningCard(w){
+  document.getElementById('mc-inner').innerHTML=`
+    <div class="mc-tag">▸ word meaning</div>
+    <div class="mc-word rev">${w.word}</div>
+    ${w.phonetic?`<div class="mc-phon">${w.phonetic}</div>`:''}
+    <div class="mc-pos">${w.pos}</div>
+    <div class="mc-def">${w.def}</div>
+    ${w.example?`<div class="mc-ex">"${w.example}"</div>`:''}`;
+}
+function updQueueUI(){
+  const el=document.getElementById('wq');el.innerHTML='';
+  if(cur){const d=document.createElement('div');d.className='wcard active rev';d.innerHTML=`<div class="wdot"></div>${cur.word}`;el.appendChild(d);}
+  wordQ.slice(0,4).forEach(w=>{const d=document.createElement('div');d.className='wcard';d.innerHTML=`<div class="wdot"></div>${w.word}`;el.appendChild(d);});
+  done.slice().reverse().slice(0,5).forEach(w=>{const d=document.createElement('div');d.className='wcard found';d.innerHTML=`<div class="wdot"></div>${w.word}`;el.appendChild(d);});
+}
+function updDictWide(w){
+  document.getElementById('rp-hero').innerHTML=`
+    <div class="rp-hero rev">
+      <div class="rp-tag">▸ find this word</div>
+      <div class="rp-word">${w.word}</div>
+      ${w.phonetic?`<div class="rp-phon">${w.phonetic}</div>`:''}
+      <div class="rp-pos">${w.pos}</div>
+      <div class="rp-def">${w.def}</div>
+      ${w.example?`<div class="rp-ex">"${w.example}"</div>`:''}
+    </div>`;
+}
+function addFoundEntry(w,pts){
+  const rf=document.getElementById('rp-found'),rl=document.getElementById('rp-found-list');
+  rf.style.display='block';
+  const e=document.createElement('div');e.className='rp-fe rev';
+  e.innerHTML=`<span class="rp-fw">${w.word}</span><span class="rp-fp">+${pts}</span>`;
+  rl.prepend(e);
+  // add chip to narrow strip
+  const row=document.getElementById('ws-chips');
+  const chip=document.createElement('div');chip.className='ws-chip';chip.textContent=w.word;
+  row.prepend(chip);
+}
+function updQfoot(){
+  const inf=cfg.words===0,rem=inf?'∞':cfg.words-done.length;
+  document.getElementById('qfoot').textContent=`${done.length}/${inf?'∞':cfg.words} · ${rem} left`;
+}
+function updHdr(){
+  document.getElementById('sv').textContent=score;
+  document.getElementById('fv').textContent=done.length;
+  document.getElementById('stv').textContent=streak;
+}
+function updProgress(){
+  const inf=cfg.words===0,pct=inf?0:(done.length/cfg.words)*100;
+  document.getElementById('pf').style.width=pct+'%';
+  document.getElementById('pt').textContent=`${done.length}/${inf?'∞':cfg.words} found`;
+  document.getElementById('ws-fill').style.width=pct+'%';
+  document.getElementById('ws-ptxt').textContent=`${done.length}/${inf?'∞':cfg.words} found`;
+}
+
+// ══════════════════════════════════════════
+//  TRANSLATIONS
+// ══════════════════════════════════════════
+async function doTranslations(wObj){
+  // wide panel
+  const sec=document.getElementById('rp-trans'),con=document.getElementById('rp-trans-content');
+  const lp=document.getElementById('rp-langs'); lp.innerHTML='';
+  if(!cfg.langs.length){sec.style.display='none';}
+  else{
+    sec.style.display='block';con.innerHTML='';
+    cfg.langs.forEach(code=>{
+      const l=LANGS.find(x=>x.code===code);
+      const pip=document.createElement('div');pip.className='lp on';pip.textContent=l.flag;lp.appendChild(pip);
+      const d=document.createElement('div');d.className='rp-te';d.id=`rt-${code}`;
+      d.innerHTML=`<div class="rp-te-lang">${l.flag} ${l.name}</div><div class="tload"><div class="dspin"><span></span><span></span><span></span></div></div>`;
+      con.appendChild(d);
+    });
+    cfg.langs.forEach(code=>transFetch(wObj,code,'rt-','rp-te-txt'));
+  }
+  // narrow card
+  let mtb=document.getElementById('mc-trans-block');
+  if(mtb)mtb.remove();
+  if(cfg.langs.length){
+    mtb=document.createElement('div');mtb.id='mc-trans-block';mtb.className='mc-trans';
+    mtb.innerHTML='<div class="mc-trans-lbl">Translations</div><div id="mc-trans-content"></div>';
+    document.getElementById('meaning-card').appendChild(mtb);
+    const mcon=document.getElementById('mc-trans-content');
+    cfg.langs.forEach(code=>{
+      const l=LANGS.find(x=>x.code===code);
+      const d=document.createElement('div');d.className='mc-te';d.id=`mt-${code}`;
+      d.innerHTML=`<div class="mc-te-lang">${l.flag} ${l.name}</div><div class="tload"><div class="dspin"><span></span><span></span><span></span></div></div>`;
+      mcon.appendChild(d);
+    });
+    cfg.langs.forEach(code=>transFetch(wObj,code,'mt-','mc-te-txt'));
+  }
+}
+
+async function transFetch(wObj,code,pfx,txtClass){
+  const text=`${wObj.word}: ${wObj.def}`;
+  const el=document.getElementById(pfx+code); if(!el)return;
+  const l=LANGS.find(x=>x.code===code);
+  try{
+    const r=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|${code}`);
+    const d=await r.json();
+    const t=d?.responseData?.translatedText||'—';
+    el.innerHTML=`<div class="${pfx==='rt-'?'rp-te-lang':'mc-te-lang'}">${l.flag} ${l.name}</div><div class="${txtClass}">${t}</div>`;
+  }catch{
+    el.innerHTML=`<div class="${pfx==='rt-'?'rp-te-lang':'mc-te-lang'}">${l.flag} ${l.name}</div><div class="${txtClass}" style="color:#555">Unavailable</div>`;
+  }
+}
+
+// ══════════════════════════════════════════
+//  TOASTS & HINT
+// ══════════════════════════════════════════
+let tT,bT;
+function showToast(msg,type=''){
+  const t=document.getElementById('toast');t.textContent=msg;t.className='on '+type;
+  clearTimeout(tT);tT=setTimeout(()=>t.className='',2200);
+}
+function showBToast(msg){
+  const t=document.getElementById('btost');t.textContent=msg;t.classList.add('on');
+  clearTimeout(bT);bT=setTimeout(()=>t.classList.remove('on'),2800);
+}
+function showHint(msg){
+  const h=document.getElementById('hint');h.textContent=msg;
+  setTimeout(()=>h.textContent='tap & drag to select a word',2000);
+}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+</script>
+</body>
+</html>
